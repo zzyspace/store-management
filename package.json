@@ -1,0 +1,20 @@
+{
+  "name": "store-management",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "dev": "node --env-file-if-exists=.env --watch server/index.js",
+    "test": "node --test tests/*.test.js",
+    "test:browser": "node tests/browser-check.js",
+    "test:integration": "node --test tests/integration-check.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "express": "^4.21.2"
+  }
+}

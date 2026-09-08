@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark"><title>门店管理</title>
+<script src="/store/assets/theme.js"></script>
+<link rel="stylesheet" href="/store/assets/style.css">
+<script src="/store/assets/app.js" defer></script>
+</head><body><div class="page"><nav class="topbar" aria-label="门店管理导航">
+        <div class="center-switcher" id="centerSwitcher">
+          <button class="center-switcher-trigger" id="centerSwitcherTrigger" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="centerSwitcherMenu" disabled>
+            <svg class="center-icon" viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13v15h22V13M3 13l3-9h20l3 9M3 13c0 5 6.5 5 6.5 0 0 5 6.5 5 6.5 0 0 5 6.5 5 6.5 0 0 5 6.5 5 6.5 0M12 28v-8h8v8"/></svg><span>门店管理</span>
+            <svg class="center-switcher-chevron" id="centerSwitcherChevron" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="m5 7 5 5 5-5"/></svg>
+          </button>
+          <div class="center-switcher-menu" id="centerSwitcherMenu" role="menu" hidden>
+            <a class="center-switcher-option" data-center="expense" role="menuitem" href="/expense"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="7" width="22" height="19" rx="4" fill="currentColor" fill-opacity=".16"/><path d="M8 7V5.5A2.5 2.5 0 0 1 10.5 3H22"/><path d="M10 13h8"/><path d="m12 17 2.2 2.2 3.5-3.7"/><circle cx="24" cy="24" r="4" fill="currentColor" stroke="none"/><path d="M24 22v4M22 24h4" stroke="white" stroke-width="1.8"/></svg><span>报账中心</span><span></span></a>
+            <a class="center-switcher-option" data-center="invoice" role="menuitem" href="/invoice"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3.5" width="18" height="25" rx="3"/><path d="M11 9h10M11 14h8M11 19h5"/><circle cx="23" cy="23.5" r="4"/><path d="m21.3 23.5 1.2 1.2 2.2-2.5"/></svg><span>发票中心</span><span></span></a>
+            <a class="center-switcher-option" data-center="staff" role="menuitem" href="/staff"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="10" r="5"/><path d="M6.5 27c.8-6.2 4-9.2 9.5-9.2s8.7 3 9.5 9.2"/></svg><span>员工中心</span><span></span></a>
+            <a class="center-switcher-option" data-center="store" role="menuitem" href="/store" aria-current="page"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13v15h22V13M3 13l3-9h20l3 9M3 13c0 5 6.5 5 6.5 0 0 5 6.5 5 6.5 0 0 5 6.5 5 6.5 0 0 5 6.5 5 6.5 0M12 28v-8h8v8"/></svg><span>门店管理</span><span class="center-switcher-check" aria-hidden="true">✓</span></a>
+          </div>
+        </div>
+        <div class="context-selectors">
+          <label>门店<select id="storeSelect" aria-label="选择门店" disabled><option>加载中</option></select></label>
+          <label>功能<select id="featureSelect" aria-label="选择功能" disabled><option>加载中</option></select></label>
+        </div>
+        <div class="topbar-actions">
+          <button class="theme-toggle" id="themeToggle" type="button" aria-label="切换到深色模式" aria-pressed="false"><span class="theme-icon" id="themeIcon" aria-hidden="true">🌙</span></button>
+          <form method="post" action="/logout">
+            <input type="hidden" name="returnTo" value="/store" />
+            <button class="logout-button" type="submit">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M15 8l4 4-4 4M19 12H9" />
+              </svg>
+              <span>退出登录</span>
+            </button>
+          </form>
+        </div>
+      </nav>
+      <button class="center-switcher-backdrop" id="centerSwitcherBackdrop" type="button" aria-label="关闭后台选择列表" hidden></button>
+
+
+<main>
+<header class="hero"><div><h1>优惠券管理</h1><p id="storeDescription">查看优惠券发放与核销记录。</p></div><button class="primary" id="issueOpen" hidden>＋ 新增优惠券</button></header>
+<p class="status" id="pageStatus" role="status" aria-live="polite"></p>
+<section class="panel" aria-label="已发放优惠券">
+<div class="panel-heading"><h2>已发放优惠券</h2><span class="pill" id="totalPill">总数 0</span></div>
+<div class="table-scroll" tabindex="0" aria-label="优惠券列表，可横向滚动"><table>
+<thead><tr><th>状态</th><th>类型</th><th>券码</th><th>赠送原因</th><th>操作人</th><th>发放时间</th><th>核销时间</th><th>操作</th></tr></thead>
+<tbody id="couponRows"><tr><td colspan="8" class="empty">正在加载…</td></tr></tbody>
+</table></div>
+<footer class="pagination"><span id="pageInfo">第 1 页</span><div><button id="previousPage" disabled>上一页</button><button id="nextPage" disabled>下一页</button></div></footer>
+</section>
+</main></div>
+<dialog id="issueDialog" aria-labelledby="issueTitle"><form id="issueForm">
+<div class="modal-heading"><h2 id="issueTitle">新增优惠券</h2><button type="button" class="close" data-close="issueDialog" aria-label="关闭新增优惠券弹窗">×</button></div>
+<p class="muted">发放门店：<strong id="issueStore"></strong></p>
+<div class="form-grid">
+<label>类型<select name="type" required><option value="">请选择类型</option><option value="cash_100">100元代金券</option><option value="free_drink">赠饮券</option></select></label>
+<label>券码<input name="code" required maxlength="200" autocomplete="off" placeholder="请输入券码"></label>
+<label class="wide">赠送原因<textarea name="reason" required maxlength="1000" rows="3" placeholder="请输入赠送原因"></textarea></label>
+<label>操作人<input name="operator" required maxlength="200" autocomplete="off"></label>
+<label>发放时间<input name="issuedAt" type="datetime-local" step="60" required></label>
+</div>
+<p class="status" id="issueStatus" role="status" aria-live="polite"></p>
+<div class="modal-actions"><button type="button" data-close="issueDialog">取消</button><button type="submit" class="primary" id="issueSubmit">发放</button></div>
+</form></dialog>
+<dialog id="redeemDialog" aria-labelledby="redeemTitle"><form id="redeemForm">
+<div class="modal-heading"><h2 id="redeemTitle">确认核销</h2><button type="button" class="close" data-close="redeemDialog" aria-label="关闭核销弹窗">×</button></div>
+<dl id="redeemSummary"></dl><p class="muted">核销时间将记录为当前时间，核销后暂不支持撤销。</p>
+<p class="status" id="redeemStatus" role="status" aria-live="polite"></p>
+<div class="modal-actions"><button type="button" data-close="redeemDialog">取消</button><button type="submit" class="primary" id="redeemSubmit">确认核销</button></div>
+</form></dialog>
+</body></html>

@@ -1,0 +1,29 @@
+[Unit]
+Description=Store management admin
+After=network.target admin-auth-gateway.service
+
+[Service]
+Type=simple
+User=store-management
+Group=store-management
+WorkingDirectory=/opt/store-management/current
+Environment=NODE_ENV=production
+Environment=STORE_HOST=127.0.0.1
+Environment=STORE_PORT=8791
+Environment=STORE_STATE_DIR=/var/lib/store-management
+Environment=ADMIN_AUTH_MODE=unified
+EnvironmentFile=/etc/store-management.env
+ExecStart=/usr/bin/node server/index.js
+Restart=on-failure
+RestartSec=5
+StateDirectory=store-management
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/store-management
+
+[Install]
+WantedBy=multi-user.target
