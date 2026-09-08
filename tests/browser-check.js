@@ -30,6 +30,8 @@ try {
   await loginAs("admin"); await page.goto(f.base + "/store");
   await page.getByText("FZ-20260909-001", { exact: true }).waitFor();
   assert.equal(await page.title(), "门店管理");
+  assert.equal(await page.locator("#centerSwitcherTrigger").isDisabled(), true);
+  assert.equal(await page.locator("#centerSwitcherChevron").isVisible(), false);
   assert.equal(await page.locator("#storeSelect option").count(), 3);
   for (const theme of ["light", "dark"]) {
     await page.evaluate((theme) => { document.documentElement.dataset.theme = theme; document.documentElement.style.colorScheme = theme; }, theme);
@@ -108,6 +110,40 @@ try {
   await page.locator("#username").fill("manager"); await page.locator("#password").fill("local-fixture-password");
   await page.getByRole("button", { name: "登录", exact: true }).click(); await page.waitForURL("**/store");
   await page.getByText("BROWSER-001", { exact: true }).waitFor();
+  // Verify actual SVG visibility and shared icon appearance for a switchable account.
+  f.grant("owner", "admin", "all");
+  for (const [app, permission] of [["invoice", "submission:view"], ["staff", "employee:view"], ["expense", "report:view"]]) {
+    f.accounts.putAccess({ accountId: "owner", app, role: "admin", permissions: [permission], config: { viewScope: { ownership: "any", stores: "all", ...(app === "expense" ? { channels: "all" } : {}) } } }, { actor: "fixture", expectedVersion: 0 });
+  }
+  f.cookies.owner = `admin_session=${f.sessions.login("owner", "local-fixture-password").token}`;
+  await loginAs("owner"); await page.goto(f.base + "/store");
+  await page.waitForFunction(() => !document.getElementById("centerSwitcherTrigger").disabled);
+  assert.equal(await page.locator("#centerSwitcherChevron").isVisible(), true);
+  assert.equal(await page.locator("#centerSwitcherChevron").getAttribute("hidden"), null);
+  const reference = fs.readFileSync(path.resolve(import.meta.dirname, "../../wechat-claw/src/admin/public/admin.html"), "utf8").match(/link.innerHTML = '(<svg[^\n]+?<\/svg>)<span>账号管理/)[1];
+  assert.equal(await page.locator('[data-management] svg').evaluate((svg, reference) => svg.outerHTML === new DOMParser().parseFromString(reference, "text/html").querySelector("svg").outerHTML, reference), true);
+  for (const theme of ["light", "dark"]) {
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+      await page.evaluate((theme) => { document.documentElement.dataset.theme = theme; document.documentElement.style.colorScheme = theme; }, theme);
+      await page.locator("#centerSwitcherTrigger").click();
+      assert.equal(await page.locator('[data-management]').isVisible(), true);
+      await page.locator("#centerSwitcherChevron").evaluate(async (svg) => { await Promise.all(svg.getAnimations().map(animation => animation.finished)); });
+      const colors = await page.evaluate(() => ({
+        header: getComputedStyle(document.querySelector(".center-icon")).color,
+        store: getComputedStyle(document.querySelector('[data-center="store"] svg')).color,
+        accounts: getComputedStyle(document.querySelector('[data-management] svg')).color,
+        other: [...document.querySelectorAll('[data-center]:not([data-center="store"]) svg')].map(svg => getComputedStyle(svg).color),
+      }));
+      assert.equal(colors.header, theme === "light" ? "rgb(232, 93, 142)" : "rgb(244, 134, 173)");
+      assert.equal(colors.header, colors.store);
+      assert.equal(colors.accounts, "rgb(167, 139, 250)");
+      assert.ok(!colors.other.includes(colors.store));
+      await checkSize(`navigation-${theme}-${width}`, width);
+      await page.keyboard.press("Escape");
+      assert.equal(await page.locator("#centerSwitcherMenu").isVisible(), false);
+    }
+  }
   assert.deepEqual(errors, []);
   fs.writeFileSync(path.join(output, "measurements.json"), JSON.stringify(measurements, null, 2));
   console.log(`Browser checks passed (${measurements.length} screenshots): ${output}`);

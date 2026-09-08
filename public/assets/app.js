@@ -182,14 +182,14 @@ async function loadCenters() {
       link.hidden = !session.apps?.includes(link.dataset.center);
       if (session.destinations?.[link.dataset.center]) link.href = session.destinations[link.dataset.center];
     }
-    if (session.canManageAccounts) {
-      const link = document.createElement("a"); link.className = "center-switcher-option"; link.href = "/auth/accounts"; link.setAttribute("role", "menuitem");
-      link.innerHTML = '<svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="10" r="5"/><path d="M3 28c0-14 18-14 18 0M25 17v12M19 23h12"/></svg><span>账号管理</span><span></span>';
+    if (session.canManageAccounts && !$("centerSwitcherMenu").querySelector("[data-management]")) {
+      const link = document.createElement("a"); link.className = "center-switcher-option"; link.href = "/auth/accounts"; link.setAttribute("role", "menuitem"); link.dataset.management = "true";
+      link.innerHTML = '<svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9.5" r="4.25" fill="currentColor" fill-opacity=".16"/><path d="M4.5 25.5c.65-5.8 3.15-8.5 7.5-8.5 3.25 0 5.45 1.5 6.65 4.55"/><circle cx="23.25" cy="22.75" r="3.25" fill="currentColor" fill-opacity=".16"/><path d="M23.25 17.5v1.15M23.25 26.85V28M18 22.75h1.15M27.35 22.75h1.15M19.55 19.05l.8.8M26.15 25.65l.8.8M26.95 19.05l-.8.8M20.35 25.65l-.8.8"/><circle cx="23.25" cy="22.75" r="1.05" fill="currentColor" stroke="none"/></svg><span>账号管理</span><span></span>';
       $("centerSwitcherMenu").append(link);
     }
     $("centerSwitcherTrigger").disabled = !session.apps?.some((app) => app !== "store") && !session.canManageAccounts;
   } catch { /* Current center remains usable while navigation discovery is unavailable. */ }
-  $("centerSwitcherTrigger").querySelector(".center-switcher-chevron").hidden = $("centerSwitcherTrigger").disabled;
+  $("centerSwitcherTrigger").querySelector(".center-switcher-chevron").toggleAttribute("hidden", $("centerSwitcherTrigger").disabled);
 }
 
 async function initialize() {

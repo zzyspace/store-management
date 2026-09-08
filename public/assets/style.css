@@ -223,7 +223,8 @@ body:has(dialog[open]) { overflow: hidden; }
 .modal-actions .primary { min-width: 96px; }
 dl { display: grid; grid-template-columns: 50px minmax(0,1fr); gap: 16px; margin: 24px 0; }
 dt { color: var(--ink-soft); } dd { margin: 0; overflow-wrap: anywhere; }
-.center-switcher-option[data-center="store"] svg, .center-icon { color: #20a398; }
+.center-switcher-option[data-center="store"] svg, .center-switcher-trigger .center-icon { color: #e85d8e; }
+:root[data-theme="dark"] .center-switcher-option[data-center="store"] svg, :root[data-theme="dark"] .center-switcher-trigger .center-icon { color: #f486ad; }
 @media (max-width: 760px) {
   .topbar { flex-wrap: wrap; gap: 10px; padding: 8px; }
   .context-selectors { order: 3; width: 100%; margin: 0; gap: 12px; padding: 0 4px 3px; }
