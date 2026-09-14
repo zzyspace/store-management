@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fixture } from "./integration-fixture.js";
+import { checkIssueWizard } from "./issue-wizard-browser-check.js";
 import { checkCouponList } from "./coupon-list-browser-check.js";
 import { checkRedemption } from "./redemption-browser-check.js";
 import { checkScanner } from "./scanner-browser-check.js";
-import { installCamera, scanAndConfirm } from "./scanner-browser-fixture.js";
+import { installCamera, openIssueScanner, scanAndConfirm } from "./scanner-browser-fixture.js";
 
 const { chromium } = await import(process.env.STORE_PLAYWRIGHT_MODULE || "playwright");
 const f = await fixture();
@@ -30,7 +31,8 @@ async function checkSize(label, width) {
   if (!await page.locator("#scanDialog").isVisible()) {
     for (const mode of ["issue", "redeem"]) {
       if (!await page.locator(`#${mode}Dialog`).isVisible()) continue;
-      const submit = await page.locator(`#${mode}Submit`).boundingBox();
+      const action = mode === "issue" && await page.locator("#issueNext").isVisible() ? "#issueNext" : `#${mode}Submit`;
+      const submit = await page.locator(action).boundingBox();
       assert.ok(submit.y >= 0 && submit.y + submit.height <= size.viewportHeight, "batch actions remain in the viewport");
       const layout = await page.locator(`#${mode}Form`).evaluate((form) => {
         const fields = form.querySelector(".issue-fields"), codes = form.querySelector(".scanned-codes"), date = form.querySelector('[type="datetime-local"]');
@@ -67,14 +69,16 @@ try {
       await page.locator('#issueDialog [data-close]').first().click();
     }
   }
+  await checkIssueWizard({ page, f, checkSize });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.locator("#issueOpen").click();
   const form = page.locator("#issueForm");
   assert.equal(await form.locator('[name="type"], [name="code"]').count(), 0);
-  await page.locator("#scanOpen").click();
+  await openIssueScanner(page);
   await scanAndConfirm(page, "FUZZY-100-9001");
   await page.locator("#scanEnd").click();
   assert.equal(await page.locator("#scannedCodes li").count(), 1);
+  await page.locator("#issueNext").click();
   await page.locator("#issueSubmit").click();
   assert.equal(await form.locator('[name="reason"]').evaluate((input) => input.validity.valueMissing), true);
   await form.locator('[name="reason"]').fill("   "); await page.locator("#issueSubmit").click();

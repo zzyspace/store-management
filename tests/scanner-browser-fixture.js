@@ -18,12 +18,14 @@ export async function installCamera(context) {
       matrix.forEach((row, y) => [...row].forEach((cell, x) => { if (cell === "1") ctx.fillRect(offset + x * scale, offset + y * scale, scale, scale); }));
     }
     paint(); setInterval(paint, 100);
-    navigator.mediaDevices.getUserMedia = async (constraints) => {
+    camera.getUserMedia = async (constraints) => {
       camera.calls++; camera.constraints.push(constraints);
       if (camera.error) throw new DOMException("simulated camera error", camera.error);
       if (camera.defer) await new Promise((resolve) => { camera.resolveStart = resolve; });
       const stream = canvas.captureStream(10); camera.tracks.push(...stream.getTracks()); return stream;
     };
+    // Replace the accessor result itself: WebKit can otherwise expose a fresh native object.
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: camera.getUserMedia } });
   }, fixtures);
 }
 
@@ -35,4 +37,10 @@ export async function scanAndConfirm(page, code) {
   await showQr(page, code);
   await page.locator("#scanConfirmation").getByText(code, { exact: true }).waitFor();
   await page.locator("#scanConfirm").click();
+}
+
+export async function openIssueScanner(page) {
+  if (!await page.evaluate(() => navigator.mediaDevices.getUserMedia === window.testCamera?.getUserMedia)) throw new Error("Camera fixture is not installed; refusing to request a real camera.");
+  const empty = page.locator("#issueEmptyScan");
+  await (await empty.isVisible() ? empty : page.locator("#scanOpen")).click();
 }

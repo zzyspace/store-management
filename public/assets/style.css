@@ -325,3 +325,59 @@ dt { color: var(--ink-soft); } dd { margin: 0; overflow-wrap: anywhere; }
 }
 
 .coupon-identity .coupon-code, .coupon-issue-summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+
+/* Approved issue dialog B: scan first, then fill shared fields and review all codes. */
+#issueDialog { width: min(600px, calc(100vw - 40px)); max-height: calc(100dvh - 48px); padding: 0; }
+#issueForm { max-height: calc(100dvh - 50px); }
+#issueForm > .modal-heading { align-items: flex-start; padding: 24px 28px 18px; }
+#issueTitle { font-size: 22px; letter-spacing: -.035em; }
+#issueForm .modal-heading .close { min-width: 44px; min-height: 44px; border-radius: 50%; color: var(--ink-soft); background: var(--surface-muted); }
+.issue-store-context { display: flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: 12px; margin: 8px 0 0; }
+.issue-store-context::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #e85d8e; }
+.issue-store-context strong { font-weight: 400; }
+.issue-steps { display: flex; flex-shrink: 0; list-style: none; gap: 22px; padding: 0 0 16px; margin: 0 28px 20px; border-bottom: 1px solid var(--line); }
+.issue-steps li { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-soft); }
+.issue-steps li > span { display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; background: var(--surface-muted); font-size: 11px; }
+.issue-steps li[aria-current="step"] { color: var(--brand); font-weight: 600; }
+.issue-steps li[aria-current="step"] > span { background: var(--brand); color: white; }
+.issue-steps li[data-complete] > span { background: var(--brand-soft); color: var(--brand); }
+#issueForm .issue-flow-body { padding: 0 28px; }
+.issue-section { min-width: 0; padding-bottom: 24px; }
+#issueInformation:not([hidden]) + .issue-section { border-top: 1px solid var(--line); padding-top: 21px; }
+.issue-section h3 { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.6; }
+.issue-section-note { margin: 9px 0 16px; font-size: 12px; }
+#issueInformation .form-grid { margin: 0; gap: 16px; }
+#issueInformation label { font-size: 13px; font-weight: 550; }
+#issueDialog .scan-list-heading { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; margin-bottom: 8px; min-height: 44px; align-items: center; }
+.issue-count { font-size: 12px; color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
+#scanOpen { border: 0; background: transparent; color: var(--brand); min-height: 44px; padding: 0 6px; font-size: 13px; }
+.issue-scan-empty { width: 100%; display: flex; align-items: center; gap: 15px; padding: 18px; min-height: 94px; border: 1px solid var(--brand-soft); border-radius: 13px; color: var(--brand); background: var(--brand-soft); text-align: left; }
+.issue-scan-empty strong { display: block; font-size: 16px; font-weight: 600; margin-bottom: 5px; }
+.issue-scan-empty small { display: block; font-size: 12px; line-height: 1.65; font-weight: 400; color: var(--ink-soft); }
+.issue-scan-symbol { width: 30px; height: 30px; flex: 0 0 30px; border: 2px dashed currentColor; border-radius: 6px; position: relative; }
+.issue-scan-symbol::after { content: ""; position: absolute; top: 50%; left: 5px; right: 5px; height: 1px; background: currentColor; }
+#issueDialog .scanned-code { font-size: 14px; font-weight: 600; line-height: 1.5; }
+#issueDialog .scanned-codes .coupon-type { display: block; margin-top: 2px; font-size: 12px; }
+#issueDialog .scanned-codes li { padding: 9px 0; min-height: 62px; }
+#issueDialog .scanned-codes li:last-child { border-bottom: 0; }
+#issueDialog .scanned-codes button { min-width: 44px; min-height: 44px; border: 0; padding: 0 5px; background: transparent; color: var(--ink-soft); font-size: 12px; font-weight: 400; }
+#issueStatus:not(:empty) { margin: 0 28px 16px; font-size: 13px; }
+#issueStatus.error { background: rgba(255,59,48,.08); }
+#issueForm > .modal-actions { border-top: 1px solid var(--line); padding: 18px 28px; gap: 12px; }
+#issueForm > .modal-actions button { min-height: 44px; font-size: 14px; }
+#issueNext { min-width: 174px; }
+#issueSubmit { min-width: 135px; }
+@media (max-width: 760px) {
+  #issueDialog { inset: auto 0 0; margin: 0; width: 100%; max-width: 100vw; max-height: 94dvh; border-radius: 24px 24px 0 0; border-bottom: 0; }
+  #issueForm { max-height: calc(94dvh - 1px); }
+  #issueForm > .modal-heading { padding: 21px 20px 16px; }
+  #issueTitle { font-size: 21px; }
+  .issue-steps { margin: 0 20px 16px; gap: 20px; padding-bottom: 14px; }
+  #issueForm .issue-flow-body { padding: 0 20px; }
+  .issue-section { padding-bottom: 21px; }
+  #issueInformation:not([hidden]) + .issue-section { padding-top: 18px; }
+  #issueStatus:not(:empty) { margin: 0 20px 12px; }
+  #issueForm > .modal-actions { padding: 15px 20px max(18px, env(safe-area-inset-bottom)); }
+  #issueForm > .modal-actions .primary { flex: 1; min-width: 0; }
+}
+#issueInformation input, #issueInformation textarea { font-weight: 400; }

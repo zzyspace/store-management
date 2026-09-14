@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { showQr, scanAndConfirm } from './scanner-browser-fixture.js';
+import { showQr, openIssueScanner, scanAndConfirm } from './scanner-browser-fixture.js';
 const localTime = (value) => new Date(value + 8 * 3600000).toISOString().slice(0, 16);
 
 export async function checkRedemption({ page, f, checkSize }) {
@@ -8,7 +8,7 @@ export async function checkRedemption({ page, f, checkSize }) {
   const first = f.repository.issue('fuzzy', { ...seed, code: 'FUZZY-ZY-9101' }, 'issuer-fixture');
   const later = f.repository.issue('fuzzy', { ...seed, code: 'FUZZY-ZY-9102', issuedAt: minute }, 'issuer-fixture');
   const extra = f.repository.issue('fuzzy', { ...seed, type: 'cash_100', code: 'FUZZY-100-9103' }, 'issuer-fixture');
-  await page.locator('#issueOpen').click(); await page.locator('#scanOpen').click();
+  await page.locator('#issueOpen').click(); await openIssueScanner(page);
   await scanAndConfirm(page, 'FUZZY-ZY-9199'); await page.locator('#scanEnd').click();
   await page.locator('#issueDialog [data-close]').first().click();
   await page.locator('#redeemOpen').click();

@@ -150,7 +150,7 @@ const batchViews = {
   issue: { label: "发放", permission: "coupon:issue", form: "issueForm", dialog: "issueDialog", open: "issueOpen", store: "issueStore", scanOpen: "scanOpen", list: "scannedCodes", count: "scanCount", status: "issueStatus", submit: "issueSubmit", time: "issuedAt", endpoint: "/store/api/coupons/batch", successCount: "issuedCount" },
   redeem: { label: "核销", permission: "coupon:redeem", form: "redeemForm", dialog: "redeemDialog", open: "redeemOpen", store: "redeemStore", scanOpen: "redeemScanOpen", list: "redeemScannedCodes", count: "redeemScanCount", status: "redeemStatus", submit: "redeemSubmit", time: "redeemedAt", endpoint: "/store/api/coupons/redeem-batch", successCount: "redeemedCount" },
 };
-const emptyDraft = () => ({ store: "", codes: [], pending: null, busy: false });
+const emptyDraft = () => ({ store: "", codes: [], pending: null, busy: false, step: 1 });
 const drafts = { issue: emptyDraft(), redeem: emptyDraft() };
 
 function syncBatchControls(mode) {
@@ -160,16 +160,46 @@ function syncBatchControls(mode) {
   $(view.form).querySelectorAll("input, textarea, [data-remove-code]").forEach((control) => { control.disabled = locked; });
   $(view.scanOpen).disabled = locked || draft.codes.length >= MAX_BATCH_SIZE;
   $(view.submit).textContent = draft.busy ? `正在${view.label}…` : draft.pending ? `重试${view.label}` : view.label;
+  if (mode === "issue") {
+    const scanning = draft.step === 1, empty = draft.codes.length === 0;
+    $("issueForm").dataset.step = String(draft.step);
+    $("issueInformation").hidden = scanning;
+    $("issueInformation").querySelectorAll("input, textarea").forEach((control) => { control.disabled = scanning || locked; });
+    $("issueCouponsTitle").textContent = scanning ? "优惠券" : "本次发放的优惠券";
+    $("issueScanStep").toggleAttribute("data-complete", !scanning);
+    $("issueScanStepNumber").textContent = scanning ? "1" : "✓";
+    for (const [id, active] of [["issueScanStep", scanning], ["issueInfoStep", !scanning]]) {
+      if (active) $(id).setAttribute("aria-current", "step"); else $(id).removeAttribute("aria-current");
+    }
+    $("issueCancel").hidden = !scanning;
+    $("issueBack").hidden = scanning; $("issueBack").disabled = locked;
+    $("issueNext").hidden = !scanning; $("issueNext").disabled = locked || empty;
+    $("issueSubmit").hidden = scanning; $("issueSubmit").disabled = scanning || draft.busy || empty;
+    if (!draft.busy && !draft.pending) $("issueSubmit").textContent = empty ? "发放" : `发放 ${draft.codes.length} 张`;
+    $("issueEmptyScan").hidden = !empty; $("issueEmptyScan").disabled = locked;
+    $("scanOpen").hidden = empty; $("scannedCodes").hidden = empty;
+  }
 }
+
+function setIssueStep(step) {
+  const draft = drafts.issue;
+  if (draft.busy || draft.pending || step === 2 && !draft.codes.length) return;
+  draft.step = step; syncBatchControls("issue");
+  $("issueForm").querySelector(".issue-fields").scrollTop = 0;
+  $(step === 1 ? "issueCouponsTitle" : "issueInformationTitle").focus({ preventScroll: true });
+}
+$("issueNext").addEventListener("click", () => setIssueStep(2));
+$("issueBack").addEventListener("click", () => setIssueStep(1));
+$("issueEmptyScan").addEventListener("click", () => openBatchScanner("issue"));
 
 function renderScannedCodes(mode) {
   const view = batchViews[mode], draft = drafts[mode];
-  $(view.count).textContent = `已扫描 ${draft.codes.length} / ${MAX_BATCH_SIZE} 张`;
+  $(view.count).textContent = `${mode === "issue" ? "" : "已扫描 "}${draft.codes.length} / ${MAX_BATCH_SIZE} 张`;
   if (state.scanMode === mode) $("scanConfirmedCount").textContent = draft.codes.length;
   $(view.list).replaceChildren(...draft.codes.map((item) => {
     const row = document.createElement("li"), content = document.createElement("div"), code = document.createElement("strong"), type = document.createElement("span"), remove = document.createElement("button");
     code.textContent = item.code; code.className = "scanned-code";
-    type.textContent = state.session.types[item.type]; type.className = "muted";
+    type.textContent = state.session.types[item.type]; type.className = mode === "issue" ? `coupon-type ${item.type}` : "muted";
     content.append(code, type);
     if (item.error) { const error = document.createElement("p"); error.className = "coupon-error"; error.textContent = item.error; content.append(error); }
     remove.type = "button"; remove.textContent = "移除"; remove.dataset.removeCode = item.code; remove.setAttribute("aria-label", `移除 ${item.code}`);
@@ -182,6 +212,8 @@ async function submitBatch(event, mode) {
   event.preventDefault();
   const view = batchViews[mode], draft = drafts[mode], form = $(view.form);
   if (draft.busy) return;
+  // Advancing from scanning must never validate hidden fields or submit a batch.
+  if (mode === "issue" && draft.step === 1) { setIssueStep(2); return; }
   if (!draft.pending) {
     const fields = mode === "issue" ? [["reason", "赠送原因"], ["operator", "操作人"]] : [["operator", "操作人"]];
     for (const [name, label] of fields) form.elements[name].setCustomValidity(form.elements[name].value.trim() ? "" : `请填写${label}。`);
@@ -200,8 +232,11 @@ async function submitBatch(event, mode) {
     draft.pending = null;
     draft.codes = result.results.filter((item) => !item.success).map((item) => ({ ...draft.codes[item.index], error: item.error.message }));
     renderScannedCodes(mode);
-    const message = `已${view.label} ${result[view.successCount]} 张${result.failedCount ? `，${result.failedCount} 张失败，请核对下方原因。` : "。"}`;
-    if (result.failedCount) status(view.status, message, true);
+    const message = `已${view.label} ${result[view.successCount]} 张${result.failedCount ? `，${result.failedCount} 张失败，请核对${mode === "issue" ? "失败券的" : "下方"}原因。` : "。"}`;
+    if (result.failedCount) {
+      status(view.status, message, true);
+      if (mode === "issue") $("issueForm").querySelector(".issue-fields").scrollTop = 0;
+    }
     else $(view.dialog).close();
     state.page = 1;
     if (await loadList()) status("pageStatus", message, Boolean(result.failedCount));
@@ -224,19 +259,21 @@ for (const [mode, view] of Object.entries(batchViews)) {
   });
   for (const input of $(view.form).querySelectorAll("input, textarea")) input.addEventListener("input", () => input.setCustomValidity(""));
   $(view.form).addEventListener("submit", (event) => submitBatch(event, mode));
-  $(view.scanOpen).addEventListener("click", () => {
-    const draft = drafts[mode];
-    if (draft.busy || draft.pending || !can(view.permission) || state.scanMode) return;
-    state.scanMode = mode;
-    $("scanStore").textContent = storeLabel(draft.store); $("scanTitle").textContent = `批量扫码${view.label}`;
-    $("scanConfirmedCount").textContent = draft.codes.length;
-    $("scanDialog").showModal(); startScanning();
-  });
+  $(view.scanOpen).addEventListener("click", () => openBatchScanner(mode));
   $(view.dialog).addEventListener("cancel", (event) => { if (drafts[mode].busy) event.preventDefault(); });
   $(view.dialog).addEventListener("close", () => {
     if (state.scanMode === mode) finishScanning();
     drafts[mode] = emptyDraft(); $(view.open).focus();
   });
+}
+
+function openBatchScanner(mode) {
+  const view = batchViews[mode], draft = drafts[mode];
+  if (draft.busy || draft.pending || !can(view.permission) || state.scanMode || draft.codes.length >= MAX_BATCH_SIZE) return;
+  state.scanMode = mode;
+  $("scanStore").textContent = storeLabel(draft.store); $("scanTitle").textContent = `批量扫码${view.label}`;
+  $("scanConfirmedCount").textContent = draft.codes.length;
+  $("scanDialog").showModal(); startScanning();
 }
 
 const scanner = new CouponScanner({ video: $("scanVideo"), onCode: confirmScannedCode, onError(message) {
@@ -282,7 +319,7 @@ function finishScanning() {
   scanner.stop(); state.candidate = null; state.scanMode = null;
   $("scanConfirmation").hidden = true; $("scanEnd").disabled = false;
   if ($("scanDialog").open) $("scanDialog").close();
-  if (mode && $(batchViews[mode].dialog).open) $(batchViews[mode].scanOpen).focus();
+  if (mode && $(batchViews[mode].dialog).open) $(mode === "issue" && !drafts.issue.codes.length ? "issueEmptyScan" : batchViews[mode].scanOpen).focus({ preventScroll: true });
 }
 
 $("scanRetry").addEventListener("click", startScanning);

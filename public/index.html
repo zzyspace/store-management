@@ -60,23 +60,26 @@
 </div>
 <div class="coupon-detail-footer"><p class="status" id="detailStatus" role="status" aria-live="polite"></p><button type="button" id="copyCouponCode">复制券码</button></div>
 </dialog>
-<dialog id="issueDialog" class="batch-dialog" aria-labelledby="issueTitle"><form id="issueForm" class="batch-form">
-<div class="modal-heading"><h2 id="issueTitle">发放优惠券</h2><button type="button" class="close" data-close="issueDialog" aria-label="关闭发放优惠券弹窗">×</button></div>
-<div class="issue-fields">
-<p class="muted">发放门店：<strong id="issueStore"></strong></p>
+<dialog id="issueDialog" class="batch-dialog" aria-labelledby="issueTitle"><form id="issueForm" class="batch-form" data-step="1">
+<div class="modal-heading"><div><h2 id="issueTitle">发放优惠券</h2><p class="issue-store-context"><strong id="issueStore"></strong><span>· 批量发放</span></p></div><button type="button" class="close" data-close="issueDialog" aria-label="关闭发放优惠券弹窗">×</button></div>
+<ol class="issue-steps" aria-label="发放步骤"><li id="issueScanStep" aria-current="step"><span id="issueScanStepNumber" aria-hidden="true">1</span>扫描券码</li><li id="issueInfoStep"><span aria-hidden="true">2</span>填写并确认</li></ol>
+<div class="issue-fields issue-flow-body">
+<section id="issueInformation" class="issue-section" aria-labelledby="issueInformationTitle" hidden>
+<h3 id="issueInformationTitle" tabindex="-1">发放信息</h3><p class="muted issue-section-note">以下信息将用于本批全部优惠券。</p>
 <div class="form-grid">
-<section class="wide scanned-coupons" aria-label="待发放券码">
-<div class="scan-list-heading"><button type="button" id="scanOpen">批量扫码</button><span id="scanCount" class="pill" aria-live="polite">已扫描 0 / 50 张</span></div>
-<p class="muted">券码由扫码添加，可移除误扫项，每批最多50张。</p>
-<ul id="scannedCodes" class="scanned-codes"></ul>
-</section>
-<label class="wide">赠送原因<textarea name="reason" required maxlength="1000" rows="3" placeholder="请输入赠送原因"></textarea></label>
-<label>操作人<input name="operator" required maxlength="200" autocomplete="off"></label>
-<label>发放时间<input name="issuedAt" type="datetime-local" step="60" required></label>
+<label class="wide">赠送原因<textarea name="reason" required maxlength="1000" rows="2" placeholder="填写本批优惠券的赠送原因" disabled></textarea></label>
+<label>操作人<input name="operator" required maxlength="200" autocomplete="off" disabled></label>
+<label>发放时间<input name="issuedAt" type="datetime-local" step="60" required disabled></label>
 </div>
+</section>
+<section class="issue-section scanned-coupons" aria-labelledby="issueCouponsTitle">
+<div class="scan-list-heading"><h3 id="issueCouponsTitle" tabindex="-1">优惠券</h3><span id="scanCount" class="issue-count" aria-live="polite">0 / 50 张</span><button type="button" id="scanOpen" hidden>继续扫码</button></div>
+<button type="button" id="issueEmptyScan" class="issue-scan-empty" aria-label="批量扫码"><span class="issue-scan-symbol" aria-hidden="true"></span><span><strong>批量扫码</strong><small>逐张确认后加入本次发放，每批最多50张。</small></span></button>
+<ul id="scannedCodes" class="scanned-codes" hidden></ul>
+</section>
 </div>
 <p class="status" id="issueStatus" role="status" aria-live="polite"></p>
-<div class="modal-actions"><button type="button" data-close="issueDialog">取消</button><button type="submit" class="primary" id="issueSubmit">发放</button></div>
+<div class="modal-actions"><button type="button" id="issueCancel" data-close="issueDialog">取消</button><button type="button" id="issueBack" hidden>上一步</button><button type="button" class="primary" id="issueNext" disabled>下一步，填写信息</button><button type="submit" class="primary" id="issueSubmit" hidden disabled>发放</button></div>
 </form></dialog>
 <dialog id="scanDialog" class="scanner-dialog" aria-labelledby="scanTitle">
 <div class="scanner-heading"><h2 id="scanTitle">批量扫码</h2><button type="button" id="scanEnd">结束扫码</button></div>
