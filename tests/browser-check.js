@@ -28,6 +28,14 @@ async function checkSize(label, width) {
   if (await page.locator("#issueDialog").isVisible() && !await page.locator("#scanDialog").isVisible()) {
     const submit = await page.locator("#issueSubmit").boundingBox();
     assert.ok(submit.y >= 0 && submit.y + submit.height <= size.viewportHeight, "issuance actions remain in the viewport");
+    const layout = await page.locator("#issueForm").evaluate((form) => {
+      const fields = form.querySelector(".issue-fields"), codes = form.querySelector("#scannedCodes"), date = form.elements.issuedAt;
+      return { fieldsOverflow: fields.scrollWidth - fields.clientWidth, formOverflow: form.scrollWidth - form.clientWidth,
+        dateOverflow: date.getBoundingClientRect().right - date.parentElement.getBoundingClientRect().right,
+        codesOverflow: codes.scrollHeight - codes.clientHeight };
+    });
+    assert.ok(layout.fieldsOverflow <= 1 && layout.formOverflow <= 1 && layout.dateOverflow <= 1, `issuance must not overflow horizontally: ${JSON.stringify(layout)}`);
+    assert.ok(layout.codesOverflow <= 1, "scanned coupons expand fully instead of having their own scrolling area");
   }
   measurements.push({ label, ...size });
   await page.screenshot({ path: path.join(output, `${label}.png`), fullPage: true });
