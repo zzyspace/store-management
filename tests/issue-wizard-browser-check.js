@@ -23,7 +23,7 @@ export async function checkIssueWizard({ page, f, checkSize }) {
     assert.equal(await page.locator('#issueInfoStep').getAttribute('aria-current'), 'step');
     assert.equal(await form.locator('[name="reason"]').isDisabled(), false);
     await form.locator('[name="reason"]').fill('步骤往返和扫码后保留');
-    await form.locator('[name="operator"]').fill('指定发放人');
+    await form.locator('[name="operator"]').fill('指定激活人');
     await form.locator('[name="issuedAt"]').fill('2026-09-15T12:34');
     const sections = await form.locator('.issue-flow-body > section').evaluateAll(sections => sections.map(section => section.id || section.className));
     assert.equal(sections[0], 'issueInformation');
@@ -32,9 +32,9 @@ export async function checkIssueWizard({ page, f, checkSize }) {
     await openIssueScanner(page); await scanAndConfirm(page, 'FUZZY-ZY-9002'); await page.locator('#scanEnd').click();
     await page.locator('#issueNext').click();
     assert.equal(await form.locator('[name="reason"]').inputValue(), '步骤往返和扫码后保留');
-    assert.equal(await form.locator('[name="operator"]').inputValue(), '指定发放人');
+    assert.equal(await form.locator('[name="operator"]').inputValue(), '指定激活人');
     assert.equal(await form.locator('[name="issuedAt"]').inputValue(), '2026-09-15T12:34');
-    assert.equal(await page.locator('#issueSubmit').innerText(), '发放 2 张');
+    assert.equal(await page.locator('#issueSubmit').innerText(), '激活 2 张');
     for (const theme of ['light', 'dark']) for (const width of [1440, 390, 320]) {
       await page.setViewportSize({ width, height: width === 1440 ? 1000 : width === 390 ? 844 : 640 });
       await page.evaluate(theme => { document.documentElement.dataset.theme = theme; document.documentElement.style.colorScheme = theme; }, theme);

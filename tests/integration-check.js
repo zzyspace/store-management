@@ -77,7 +77,7 @@ test("batch redemption enforces permissions, time, concurrency, replay and indep
   const { randomUUID } = await import("node:crypto");
   const f = await fixture(); t.after(() => f.close());
   const earlier = Date.now() - 120000;
-  const issue = (code, issuedAt = earlier) => f.repository.issue("fuzzy", { type: "free_drink", code, reason: "赠送", operator: "发放姓名", issuedAt }, "fixture");
+  const issue = (code, issuedAt = earlier) => f.repository.issue("fuzzy", { type: "free_drink", code, reason: "赠送", operator: "激活姓名", issuedAt }, "fixture");
   const first = issue("FUZZY-ZY-2001"), second = issue("FUZZY-ZY-2002"), third = issue("FUZZY-ZY-2003");
   const data = { requestId: randomUUID(), store: "fuzzy", codes: [first.code, "FUZZY-ZY-9999"], operator: "核销姓名", redeemedAt: new Date(Date.now() - 60000).toISOString() };
   const post = (cookie, body = data, headers) => f.request("/store/api/coupons/redeem-batch", cookie, { method: "POST", body: JSON.stringify(body), headers });
@@ -92,7 +92,7 @@ test("batch redemption enforces permissions, time, concurrency, replay and indep
   assert.equal(a.status, 200); assert.equal(b.status, 200);
   const result = await a.json(); assert.deepEqual(await b.json(), result);
   assert.equal(result.redeemedCount, 1); assert.equal(result.failedCount, 1);
-  assert.equal(result.results[0].item.operator, "发放姓名"); assert.equal(result.results[0].item.redeemedOperator, "核销姓名");
+  assert.equal(result.results[0].item.operator, "激活姓名"); assert.equal(result.results[0].item.redeemedOperator, "核销姓名");
   assert.equal((await post(f.cookies.admin, { ...data, operator: "修改姓名" })).status, 409);
   const competing = await Promise.all([post(f.cookies.manager, { ...data, requestId: randomUUID(), codes: [second.code] }), post(f.cookies.admin, { ...data, requestId: randomUUID(), codes: [second.code] })]);
   assert.deepEqual((await Promise.all(competing.map(r => r.json()))).map(r => r.redeemedCount).sort(), [0, 1]);

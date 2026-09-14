@@ -40,11 +40,11 @@
 
 
 <main>
-<header class="hero"><div><h1>优惠券管理</h1><p id="storeDescription">查看优惠券发放与核销记录。</p></div><div class="hero-actions"><button class="primary" id="issueOpen" hidden>＋ 发放优惠券</button><button class="primary" id="redeemOpen" hidden>核销优惠券</button></div></header>
+<header class="hero"><div><h1>优惠券管理</h1><p id="storeDescription">查看优惠券激活与核销记录。</p></div><div class="hero-actions"><button class="primary" id="issueOpen" hidden>＋ 激活优惠券</button><button class="primary" id="redeemOpen" hidden>核销优惠券</button></div></header>
 <p class="status" id="pageStatus" role="status" aria-live="polite"></p>
-<section class="panel coupon-panel" aria-label="已发放优惠券">
-<div class="panel-heading"><h2>已发放优惠券</h2><span class="coupon-total" id="totalPill">共 0 张</span></div>
-<div class="coupon-list-head" aria-hidden="true"><span>优惠券</span><span>状态</span><span>赠送原因</span><span>发放记录</span><span></span></div>
+<section class="panel coupon-panel" aria-label="已激活优惠券">
+<div class="panel-heading"><h2>已激活优惠券</h2><span class="coupon-total" id="totalPill">共 0 张</span></div>
+<div class="coupon-list-head" aria-hidden="true"><span>优惠券</span><span>状态</span><span>赠送原因</span><span>激活记录</span><span></span></div>
 <ul id="couponRows" class="coupon-list" aria-label="优惠券列表"><li class="empty">正在加载…</li></ul>
 <footer class="pagination"><span id="pageInfo">第 1 页</span><div><button id="previousPage" disabled>上一页</button><button id="nextPage" disabled>下一页</button></div></footer>
 </section>
@@ -55,45 +55,51 @@
 <div class="coupon-detail-tags"><span id="detailType" class="tag"></span><span id="detailState" class="tag"></span></div>
 <p id="detailCode" class="coupon-code detail-code"></p><p id="detailStore" class="detail-store"></p>
 <section class="coupon-detail-section"><h3>赠送原因</h3><p id="detailReason" class="detail-reason"></p></section>
-<section class="coupon-detail-section detail-audit"><span class="detail-marker" aria-hidden="true">发</span><div><h3>发放记录</h3><p id="detailIssueOperator"></p><time id="detailIssuedAt"></time></div></section>
+<section class="coupon-detail-section detail-audit"><span class="detail-marker" aria-hidden="true">激</span><div><h3>激活记录</h3><p id="detailIssueOperator"></p><time id="detailIssuedAt"></time></div></section>
 <section class="coupon-detail-section detail-audit"><span class="detail-marker detail-marker-redeem" aria-hidden="true">核</span><div><h3>核销记录</h3><p id="detailRedeemOperator"></p><time id="detailRedeemedAt"></time></div></section>
 </div>
 <div class="coupon-detail-footer"><p class="status" id="detailStatus" role="status" aria-live="polite"></p><button type="button" id="copyCouponCode">复制券码</button></div>
 </dialog>
 <dialog id="issueDialog" class="batch-dialog" aria-labelledby="issueTitle"><form id="issueForm" class="batch-form" data-step="1">
-<div class="modal-heading"><div><h2 id="issueTitle">发放优惠券</h2><p class="issue-store-context"><strong id="issueStore"></strong><span>· 批量发放</span></p></div><button type="button" class="close" data-close="issueDialog" aria-label="关闭发放优惠券弹窗">×</button></div>
-<ol class="issue-steps" aria-label="发放步骤"><li id="issueScanStep" aria-current="step"><span id="issueScanStepNumber" aria-hidden="true">1</span>扫描券码</li><li id="issueInfoStep"><span aria-hidden="true">2</span>填写并确认</li></ol>
+<div class="modal-heading"><div><h2 id="issueTitle">激活优惠券</h2><p class="issue-store-context"><strong id="issueStore"></strong><span>· 批量激活</span></p></div><button type="button" class="close" data-close="issueDialog" aria-label="关闭激活优惠券弹窗">×</button></div>
+<ol class="issue-steps" aria-label="激活步骤"><li id="issueScanStep" aria-current="step"><span id="issueScanStepNumber" aria-hidden="true">1</span>扫描券码</li><li id="issueInfoStep"><span aria-hidden="true">2</span>填写并确认</li></ol>
 <div class="issue-fields issue-flow-body">
 <section id="issueInformation" class="issue-section" aria-labelledby="issueInformationTitle" hidden>
-<h3 id="issueInformationTitle" tabindex="-1">发放信息</h3><p class="muted issue-section-note">以下信息将用于本批全部优惠券。</p>
+<h3 id="issueInformationTitle" tabindex="-1">激活信息</h3><p class="muted issue-section-note">以下信息将用于本批全部优惠券。</p>
 <div class="form-grid">
 <label class="wide">赠送原因<textarea name="reason" required maxlength="1000" rows="2" placeholder="填写本批优惠券的赠送原因" disabled></textarea></label>
 <label>操作人<input name="operator" required maxlength="200" autocomplete="off" disabled></label>
-<label>发放时间<input name="issuedAt" type="datetime-local" step="60" required disabled></label>
+<label>激活时间<input name="issuedAt" type="datetime-local" step="60" required disabled></label>
 </div>
 </section>
 <section class="issue-section scanned-coupons" aria-labelledby="issueCouponsTitle">
 <div class="scan-list-heading"><h3 id="issueCouponsTitle" tabindex="-1">优惠券</h3><span id="scanCount" class="issue-count" aria-live="polite">0 / 50 张</span><button type="button" id="scanOpen" hidden>继续扫码</button></div>
-<button type="button" id="issueEmptyScan" class="issue-scan-empty" aria-label="批量扫码"><span class="issue-scan-symbol" aria-hidden="true"></span><span><strong>批量扫码</strong><small>逐张确认后加入本次发放，每批最多50张。</small></span></button>
+<button type="button" id="issueEmptyScan" class="issue-scan-empty" aria-label="批量扫码"><span class="issue-scan-symbol" aria-hidden="true"></span><span><strong>批量扫码</strong><small>逐张确认后加入本次激活，每批最多50张。</small></span></button>
 <ul id="scannedCodes" class="scanned-codes" hidden></ul>
 </section>
 </div>
 <p class="status" id="issueStatus" role="status" aria-live="polite"></p>
-<div class="modal-actions"><button type="button" id="issueCancel" data-close="issueDialog">取消</button><button type="button" id="issueBack" hidden>上一步</button><button type="button" class="primary" id="issueNext" disabled>下一步，填写信息</button><button type="submit" class="primary" id="issueSubmit" hidden disabled>发放</button></div>
+<div class="modal-actions"><button type="button" id="issueCancel" data-close="issueDialog">取消</button><button type="button" id="issueBack" hidden>上一步</button><button type="button" class="primary" id="issueNext" disabled>下一步，填写信息</button><button type="submit" class="primary" id="issueSubmit" hidden disabled>激活</button></div>
 </form></dialog>
-<dialog id="scanDialog" class="scanner-dialog" aria-labelledby="scanTitle">
-<div class="scanner-heading"><h2 id="scanTitle">批量扫码</h2><button type="button" id="scanEnd">结束扫码</button></div>
-<p class="scanner-context"><span id="scanStore"></span> · 已确认 <strong id="scanConfirmedCount">0</strong> 张</p>
+<dialog id="scanDialog" class="scanner-dialog" data-scan-state="idle" aria-labelledby="scanTitle">
+<div class="scanner-heading"><div><h2 id="scanTitle">批量扫码</h2><span id="scanPurpose" class="scan-purpose"></span></div><button type="button" id="scanClose" class="scan-close" aria-label="结束扫码并返回">×</button></div>
+<div class="scanner-context"><span id="scanStore"></span><span class="scan-count">已确认 <strong id="scanConfirmedCount">0</strong><span> / 50 张</span></span></div>
 <div class="camera-stage">
 <video id="scanVideo" autoplay muted playsinline aria-label="实时相机画面"></video>
+<span id="scanPhase" class="scan-phase" aria-hidden="true">准备扫码</span>
 <div class="scan-guide" aria-hidden="true"></div>
-<section id="scanConfirmation" class="scan-confirmation" role="alertdialog" aria-modal="true" aria-labelledby="scanConfirmTitle" hidden>
-<h2 id="scanConfirmTitle">确认券码</h2><dl id="scanSummary"></dl>
+</div>
+<div class="scanner-footer">
+<section id="scanConfirmation" class="scan-confirmation" role="alertdialog" aria-modal="true" aria-labelledby="scanConfirmTitle" aria-describedby="scanConfirmHint" hidden>
+<div class="scan-confirmation-body"><h2 id="scanConfirmTitle">确认券码</h2>
+<div id="scanSummary"><div class="scan-coupon-meta"><span id="scanCouponType" class="tag"></span><span id="scanCouponStore"></span></div><p id="scanCode"></p></div>
+<p id="scanConfirmHint" class="scan-confirm-hint"></p></div>
 <div class="modal-actions"><button type="button" id="scanCancel">取消</button><button type="button" class="primary" id="scanConfirm">确认</button></div>
 </section>
-</div>
 <p id="scanStatus" class="status" role="status" aria-live="polite"></p>
 <button type="button" id="scanRetry" hidden>重试相机</button>
+<button type="button" id="scanEnd" class="primary">结束扫码</button>
+</div>
 </dialog>
 <dialog id="redeemDialog" class="batch-dialog" aria-labelledby="redeemTitle"><form id="redeemForm" class="batch-form">
 <div class="modal-heading"><h2 id="redeemTitle">核销优惠券</h2><button type="button" class="close" data-close="redeemDialog" aria-label="关闭核销优惠券弹窗">×</button></div>
@@ -108,7 +114,7 @@
 <label>操作人<input name="operator" required maxlength="200" autocomplete="off"></label>
 <label>核销时间<input name="redeemedAt" type="datetime-local" step="60" required></label>
 </div>
-<p class="muted">核销时间不能早于发放时间或晚于当前时间，核销后暂不支持撤销。</p>
+<p class="muted">核销时间不能早于激活时间或晚于当前时间，核销后暂不支持撤销。</p>
 </div>
 <p class="status" id="redeemStatus" role="status" aria-live="polite"></p>
 <div class="modal-actions"><button type="button" data-close="redeemDialog">取消</button><button type="submit" class="primary" id="redeemSubmit">核销</button></div>

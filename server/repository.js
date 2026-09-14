@@ -21,7 +21,7 @@ export function normalizeCoupon(body) {
 function normalizeIssueFields(body) {
   const reason = requiredText(body.reason, "赠送原因", "reason", 1000);
   const operator = requiredText(body.operator, "操作人", "operator", 200);
-  return { reason, operator, issuedAt: normalizeTime(body.issuedAt, "发放时间", "issuedAt") };
+  return { reason, operator, issuedAt: normalizeTime(body.issuedAt, "激活时间", "issuedAt") };
 }
 
 function normalizeTime(value, label, field) {
@@ -121,7 +121,7 @@ export function createRepository({ stateDir, now = Date.now }) {
       const result = insert.run(store, input.type, input.code, input.reason, input.operator, input.issuedAt, now(), accountId);
       return serialize(find.get(result.lastInsertRowid));
     } catch (error) {
-      if (error.code === "SQLITE_CONSTRAINT_UNIQUE") throw new OperationError(409, "该门店已存在相同券码，请核对后再发放。", "code");
+      if (error.code === "SQLITE_CONSTRAINT_UNIQUE") throw new OperationError(409, "该门店已存在相同券码，请核对后再激活。", "code");
       throw error;
     }
   }
@@ -129,7 +129,7 @@ export function createRepository({ stateDir, now = Date.now }) {
     const digest = createHash("sha256").update(JSON.stringify({ store, codes: input.codes, reason: input.reason, operator: input.operator, issuedAt: input.issuedAt })).digest("hex");
     const previous = db.prepare("SELECT * FROM coupon_issue_batches WHERE account_id = ? AND request_id = ?").get(accountId, input.requestId);
     if (previous) {
-      if (previous.request_digest !== digest) throw new OperationError(409, "该批次标识已用于不同的发放内容。", "requestId");
+      if (previous.request_digest !== digest) throw new OperationError(409, "该批次标识已用于不同的激活内容。", "requestId");
       return JSON.parse(previous.result_json);
     }
     const seen = new Set();
@@ -152,9 +152,9 @@ export function createRepository({ stateDir, now = Date.now }) {
     return result;
   });
   function redeemOne(row, store, accountId, operator, redeemedAt) {
-    if (!row || row.store !== store) throw new OperationError(404, "该门店未发放此券，无法核销。", "code");
+    if (!row || row.store !== store) throw new OperationError(404, "该门店未激活此券，无法核销。", "code");
     if (row.redeemed_at !== null) throw new OperationError(409, "该优惠券已核销。", "code");
-    if (redeemedAt < row.issued_at) throw new OperationError(409, "核销时间不能早于该券的发放时间。", "redeemedAt");
+    if (redeemedAt < row.issued_at) throw new OperationError(409, "核销时间不能早于该券的激活时间。", "redeemedAt");
     const result = db.prepare(`UPDATE coupons SET redeemed_at = ?, redeemed_by_account_id = ?, redeemed_operator = ?
       WHERE id = ? AND store = ? AND redeemed_at IS NULL AND issued_at <= ?`).run(redeemedAt, accountId, operator, row.id, store, redeemedAt);
     if (!result.changes) throw new OperationError(409, "该优惠券状态已变化，请刷新后重试。", "code");

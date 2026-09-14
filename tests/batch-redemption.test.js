@@ -13,7 +13,7 @@ function setup(t) {
   const repository = createRepository({ stateDir: dir, now: () => currentTime });
   t.after(() => { repository.close(); fs.rmSync(dir, { recursive: true, force: true }); });
   return { dir, repository, issue(code, issuedAt = '2026-09-14T10:00+08:00', store = 'fuzzy') {
-    return repository.issue(store, { code, type: code.includes('-100-') ? 'cash_100' : 'free_drink', reason: '赠送原因', operator: '发放操作人', issuedAt: Date.parse(issuedAt) }, 'issuer-account');
+    return repository.issue(store, { code, type: code.includes('-100-') ? 'cash_100' : 'free_drink', reason: '赠送原因', operator: '激活操作人', issuedAt: Date.parse(issuedAt) }, 'issuer-account');
   } };
 }
 
@@ -32,11 +32,11 @@ test('partial redemption reports every business failure while preserving issue a
   const input = batch([first.code, second.code, old.code, later.code, 'FUZZY-ZY-9999', 'PEANUT-ZY-1', 'bad-code', ' FUZZY-ZY-0001 ']);
   const result = repository.redeemBatch('fuzzy', input, 'redeemer-account');
   assert.equal(result.redeemedCount, 2); assert.equal(result.failedCount, 6);
-  for (const [index, pattern] of [[2, /已核销/], [3, /早于/], [4, /未发放/], [5, /门店.*不符/], [6, /格式/], [7, /重复/]]) assert.match(result.results[index].error.message, pattern);
+  for (const [index, pattern] of [[2, /已核销/], [3, /早于/], [4, /未激活/], [5, /门店.*不符/], [6, /格式/], [7, /重复/]]) assert.match(result.results[index].error.message, pattern);
   assert.deepEqual(repository.get(old.id), oldState);
   assert.equal(repository.get(later.id).status, 'unredeemed');
   const value = repository.get(first.id);
-  assert.equal(value.operator, '发放操作人'); assert.equal(value.redeemedOperator, '核销操作人');
+  assert.equal(value.operator, '激活操作人'); assert.equal(value.redeemedOperator, '核销操作人');
   assert.equal(value.issuedAt, first.issuedAt); assert.equal(value.redeemedAt, new Date(input.redeemedAt).toISOString());
   const db = new Database(path.join(dir, 'coupons.db'), { readonly: true });
   try {
@@ -83,13 +83,13 @@ test('additive migration preserves historical records and never invents a redemp
   let repo;
   try {
     repo = createRepository({ stateDir: dir, now: () => currentTime });
-    const item = repo.issue('fuzzy', { type: 'free_drink', code: 'LEGACY-ANY-CODE', reason: '历史原因', operator: '历史发放人', issuedAt: currentTime - 60000 }, 'old-account');
+    const item = repo.issue('fuzzy', { type: 'free_drink', code: 'LEGACY-ANY-CODE', reason: '历史原因', operator: '历史激活人', issuedAt: currentTime - 60000 }, 'old-account');
     repo.redeem(item.id, 'fuzzy', 'old-redeemer', '待删除模拟字段'); repo.close();
     const db = new Database(path.join(dir, 'coupons.db'));
     db.exec('ALTER TABLE coupons DROP COLUMN redeemed_operator; DROP TABLE coupon_redeem_batches;');
     const before = db.prepare('SELECT * FROM coupons').all(); db.close();
     repo = createRepository({ stateDir: dir });
-    assert.equal(repo.get(item.id).redeemedOperator, null); assert.equal(repo.get(item.id).operator, '历史发放人');
+    assert.equal(repo.get(item.id).redeemedOperator, null); assert.equal(repo.get(item.id).operator, '历史激活人');
     repo.close(); repo = createRepository({ stateDir: dir });
     const migrated = new Database(path.join(dir, 'coupons.db'), { readonly: true });
     try {

@@ -4,11 +4,11 @@ import Database from 'better-sqlite3';
 
 export async function checkCouponList({ page, f, checkSize }) {
   const issuedAt = Date.now() - 2000;
-  const seed = { type: 'cash_100', reason: '列表分页验收', operator: '发放测试人', issuedAt };
+  const seed = { type: 'cash_100', reason: '列表分页验收', operator: '激活测试人', issuedAt };
   for (let i = 0; i < 52; i++) f.repository.issue('fuzzy', { ...seed, code: `FUZZY-100-${80000 + i}`, issuedAt: issuedAt + i }, 'fixture');
   const code = `FUZZY-100-${'9'.repeat(190)}`;
   const reason = '<img src=x onerror=alert(1)>\n' + '长原因'.repeat(200);
-  const operator = '发放记录人'.repeat(40), redeemer = '核销记录人'.repeat(40);
+  const operator = '激活记录人'.repeat(40), redeemer = '核销记录人'.repeat(40);
   const long = f.repository.issue('fuzzy', { ...seed, code, reason, operator, issuedAt: Date.now() - 1000 }, 'fixture');
   f.repository.redeem(long.id, 'fuzzy', 'fixture', redeemer);
   const history = f.repository.issue('fuzzy', { ...seed, code: 'LEGACY-HISTORY-1', issuedAt: Date.now() - 900 }, 'fixture');

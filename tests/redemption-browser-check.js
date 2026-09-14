@@ -4,7 +4,7 @@ const localTime = (value) => new Date(value + 8 * 3600000).toISOString().slice(0
 
 export async function checkRedemption({ page, f, checkSize }) {
   const minute = Math.floor(Date.now() / 60000) * 60000;
-  const seed = { type: 'free_drink', reason: '核销测试赠送', operator: '发放记录人', issuedAt: minute - 3600000 };
+  const seed = { type: 'free_drink', reason: '核销测试赠送', operator: '激活记录人', issuedAt: minute - 3600000 };
   const first = f.repository.issue('fuzzy', { ...seed, code: 'FUZZY-ZY-9101' }, 'issuer-fixture');
   const later = f.repository.issue('fuzzy', { ...seed, code: 'FUZZY-ZY-9102', issuedAt: minute }, 'issuer-fixture');
   const extra = f.repository.issue('fuzzy', { ...seed, type: 'cash_100', code: 'FUZZY-100-9103' }, 'issuer-fixture');
@@ -17,11 +17,13 @@ export async function checkRedemption({ page, f, checkSize }) {
   assert.equal(await form.locator('[name="reason"]').count(), 0);
   assert.equal(await form.locator('[name="operator"]').inputValue(), '测试admin');
   assert.ok(Math.abs(Date.parse((await form.locator('[name="redeemedAt"]').inputValue()) + '+08:00') - Date.now()) < 61000);
-  assert.deepEqual((await page.locator('.coupon-list-head span').allTextContents()).filter(Boolean), ['优惠券', '状态', '赠送原因', '发放记录']);
+  assert.deepEqual((await page.locator('.coupon-list-head span').allTextContents()).filter(Boolean), ['优惠券', '状态', '赠送原因', '激活记录']);
   await page.evaluate(() => { window.redeemCameraBefore = window.testCamera.calls; });
   await page.locator('#redeemScanOpen').click();
   await showQr(page, first.code);
   await page.locator('#scanConfirmation').getByText(first.code, { exact: true }).waitFor();
+  assert.equal(await page.locator('#scanPurpose').textContent(), '核销优惠券');
+  assert.match(await page.locator('#scanConfirmHint').textContent(), /不会立即核销/);
   const before = await page.locator('#scanVideo').evaluate(video => ({ time: video.currentTime, track: video.srcObject.getVideoTracks()[0].id }));
   await page.waitForTimeout(500);
   const after = await page.locator('#scanVideo').evaluate(video => ({ time: video.currentTime, track: video.srcObject.getVideoTracks()[0].id, state: video.srcObject.getVideoTracks()[0].readyState }));
@@ -64,10 +66,10 @@ export async function checkRedemption({ page, f, checkSize }) {
   assert.deepEqual(bodies[0], bodies[1]);
   assert.equal(await page.locator('#redeemScannedCodes li').count(), 3);
   const failures = await page.locator('#redeemScannedCodes').innerText();
-  assert.match(failures, /已核销/); assert.match(failures, /未发放/); assert.match(failures, /早于/);
+  assert.match(failures, /已核销/); assert.match(failures, /未激活/); assert.match(failures, /早于/);
   assert.ok(!failures.includes(first.code));
   assert.equal(f.repository.get(first.id).redeemedOperator, '柜台核销人');
-  assert.equal(f.repository.get(first.id).operator, '发放记录人');
+  assert.equal(f.repository.get(first.id).operator, '激活记录人');
   assert.equal(f.repository.get(first.id).redeemedAt, new Date(minute - 60000).toISOString());
   assert.equal(f.repository.get(later.id).status, 'unredeemed');
   await checkSize('redeem-partial-dark-390', 390);
@@ -79,9 +81,9 @@ export async function checkRedemption({ page, f, checkSize }) {
   assert.notEqual(bodies[2].requestId, bodies[0].requestId); assert.deepEqual(bodies[2].codes, [later.code, extra.code]);
   await page.unroute('**/store/api/coupons/redeem-batch');
   const row = page.locator('#couponRows .coupon-row').filter({ hasText: first.code });
-  assert.match(await row.locator('.coupon-issue-summary').innerText(), /发放记录人/);
+  assert.match(await row.locator('.coupon-issue-summary').innerText(), /激活记录人/);
   await row.click();
-  assert.equal(await page.locator('#detailIssueOperator').innerText(), '发放记录人');
+  assert.equal(await page.locator('#detailIssueOperator').innerText(), '激活记录人');
   assert.equal(await page.locator('#detailRedeemOperator').innerText(), '柜台核销人');
   await page.locator('#couponDetailDialog [data-close]').click();
   assert.equal(await page.locator('#couponRows').getByRole('button', { name: '核销', exact: true }).count(), 0);

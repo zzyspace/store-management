@@ -35,12 +35,18 @@ export async function showQr(page, code) {
 
 export async function scanAndConfirm(page, code) {
   await showQr(page, code);
-  await page.locator("#scanConfirmation").getByText(code, { exact: true }).waitFor();
+  try { await page.locator("#scanConfirmation").getByText(code, { exact: true }).waitFor(); }
+  catch (error) {
+    const observed = await page.evaluate(() => ({ candidate: document.getElementById("scanCode")?.textContent, phase: document.getElementById("scanPhase")?.textContent, status: document.getElementById("scanStatus")?.textContent, frame: window.testCamera?.code }));
+    throw new Error(`Expected scan ${code}; observed ${JSON.stringify(observed)}`, { cause: error });
+  }
   await page.locator("#scanConfirm").click();
 }
 
 export async function openIssueScanner(page) {
   if (!await page.evaluate(() => navigator.mediaDevices.getUserMedia === window.testCamera?.getUserMedia)) throw new Error("Camera fixture is not installed; refusing to request a real camera.");
+  // A fresh camera session must not recognize the previous test's still-visible coupon.
+  await showQr(page, null);
   const empty = page.locator("#issueEmptyScan");
   await (await empty.isVisible() ? empty : page.locator("#scanOpen")).click();
 }

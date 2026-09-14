@@ -55,7 +55,7 @@ function renderRows() {
     type.className = `coupon-type ${item.type}`; type.textContent = state.session.types[item.type]; identity.append(code, type);
     tag.className = `tag coupon-state ${item.status}`; tag.textContent = item.status === "redeemed" ? "已核销" : "未核销";
     reason.className = "coupon-reason"; reason.textContent = item.reason; reason.title = item.reason;
-    audit.className = "coupon-issue-summary"; audit.textContent = `${item.operator} · ${dateText(item.issuedAt).slice(0, 16)} 发放`;
+    audit.className = "coupon-issue-summary"; audit.textContent = `${item.operator} · ${dateText(item.issuedAt).slice(0, 16)} 激活`;
     chevron.className = "coupon-chevron"; chevron.setAttribute("aria-hidden", "true");
     button.append(identity, tag, reason, audit, chevron); button.addEventListener("click", () => openCouponDetail(item, button)); row.append(button);
     return row;
@@ -124,7 +124,7 @@ async function loadList() {
   const request = ++state.request, store = state.store, page = state.page;
   state.loading = true; state.items = []; state.total = 0;
   emptyRow("正在加载…"); renderPagination(); status("pageStatus");
-  $("storeDescription").textContent = `${storeLabel(store)} · 查看优惠券发放与核销记录。`;
+  $("storeDescription").textContent = `${storeLabel(store)} · 查看优惠券激活与核销记录。`;
   try {
     const result = await api(`/store/api/coupons?store=${encodeURIComponent(store)}&page=${page}`);
     if (request !== state.request || store !== state.store) return;
@@ -147,7 +147,7 @@ function setBusy(dialogId, busy) {
 }
 
 const batchViews = {
-  issue: { label: "发放", permission: "coupon:issue", form: "issueForm", dialog: "issueDialog", open: "issueOpen", store: "issueStore", scanOpen: "scanOpen", list: "scannedCodes", count: "scanCount", status: "issueStatus", submit: "issueSubmit", time: "issuedAt", endpoint: "/store/api/coupons/batch", successCount: "issuedCount" },
+  issue: { label: "激活", permission: "coupon:issue", form: "issueForm", dialog: "issueDialog", open: "issueOpen", store: "issueStore", scanOpen: "scanOpen", list: "scannedCodes", count: "scanCount", status: "issueStatus", submit: "issueSubmit", time: "issuedAt", endpoint: "/store/api/coupons/batch", successCount: "issuedCount" },
   redeem: { label: "核销", permission: "coupon:redeem", form: "redeemForm", dialog: "redeemDialog", open: "redeemOpen", store: "redeemStore", scanOpen: "redeemScanOpen", list: "redeemScannedCodes", count: "redeemScanCount", status: "redeemStatus", submit: "redeemSubmit", time: "redeemedAt", endpoint: "/store/api/coupons/redeem-batch", successCount: "redeemedCount" },
 };
 const emptyDraft = () => ({ store: "", codes: [], pending: null, busy: false, step: 1 });
@@ -165,7 +165,7 @@ function syncBatchControls(mode) {
     $("issueForm").dataset.step = String(draft.step);
     $("issueInformation").hidden = scanning;
     $("issueInformation").querySelectorAll("input, textarea").forEach((control) => { control.disabled = scanning || locked; });
-    $("issueCouponsTitle").textContent = scanning ? "优惠券" : "本次发放的优惠券";
+    $("issueCouponsTitle").textContent = scanning ? "优惠券" : "本次激活的优惠券";
     $("issueScanStep").toggleAttribute("data-complete", !scanning);
     $("issueScanStepNumber").textContent = scanning ? "1" : "✓";
     for (const [id, active] of [["issueScanStep", scanning], ["issueInfoStep", !scanning]]) {
@@ -175,7 +175,7 @@ function syncBatchControls(mode) {
     $("issueBack").hidden = scanning; $("issueBack").disabled = locked;
     $("issueNext").hidden = !scanning; $("issueNext").disabled = locked || empty;
     $("issueSubmit").hidden = scanning; $("issueSubmit").disabled = scanning || draft.busy || empty;
-    if (!draft.busy && !draft.pending) $("issueSubmit").textContent = empty ? "发放" : `发放 ${draft.codes.length} 张`;
+    if (!draft.busy && !draft.pending) $("issueSubmit").textContent = empty ? "激活" : `激活 ${draft.codes.length} 张`;
     $("issueEmptyScan").hidden = !empty; $("issueEmptyScan").disabled = locked;
     $("scanOpen").hidden = empty; $("scannedCodes").hidden = empty;
   }
@@ -271,13 +271,14 @@ function openBatchScanner(mode) {
   const view = batchViews[mode], draft = drafts[mode];
   if (draft.busy || draft.pending || !can(view.permission) || state.scanMode || draft.codes.length >= MAX_BATCH_SIZE) return;
   state.scanMode = mode;
-  $("scanStore").textContent = storeLabel(draft.store); $("scanTitle").textContent = `批量扫码${view.label}`;
+  $("scanStore").textContent = storeLabel(draft.store); $("scanPurpose").textContent = `${view.label}优惠券`;
   $("scanConfirmedCount").textContent = draft.codes.length;
   $("scanDialog").showModal(); startScanning();
 }
 
 const scanner = new CouponScanner({ video: $("scanVideo"), onCode: confirmScannedCode, onError(message) {
   state.candidate = null; $("scanConfirmation").hidden = true; $("scanEnd").disabled = false;
+  setScanUiState("error");
   status("scanStatus", message, true); $("scanRetry").hidden = false; $("scanRetry").disabled = false;
 } });
 
@@ -289,13 +290,14 @@ function confirmScannedCode(value) {
     if (draft.codes.some((entry) => entry.code === item.code)) throw new Error("该券码已加入，请扫描下一张。");
     if (draft.codes.length >= MAX_BATCH_SIZE) throw new Error(`已达到${MAX_BATCH_SIZE}张上限，请结束扫码并${view.label}。`);
     state.candidate = item;
-    const nodes = [];
-    for (const [label, value] of [["券码", item.code], ["门店", storeLabel(item.store)], ["类型", state.session.types[item.type]]]) {
-      const term = document.createElement("dt"), detail = document.createElement("dd"); term.textContent = label; detail.textContent = value; nodes.push(term, detail);
-    }
-    $("scanSummary").replaceChildren(...nodes); status("scanStatus");
+    $("scanCode").textContent = item.code;
+    $("scanCouponType").className = `tag ${item.type}`; $("scanCouponType").textContent = state.session.types[item.type];
+    $("scanCouponStore").textContent = storeLabel(item.store);
+    $("scanConfirmHint").textContent = `确认后加入待${view.label}清单，不会立即${view.label}。`;
+    status("scanStatus"); setScanUiState("confirm");
     $("scanConfirmation").hidden = false; $("scanEnd").disabled = true; $("scanConfirm").focus();
-  } catch (error) { status("scanStatus", error.message, true); scanner.resume(); }
+    $("scanConfirmation").querySelector(".scan-confirmation-body").scrollTop = 0;
+  } catch (error) { setScanUiState("ready"); status("scanStatus", error.message, true); scanner.resume(); }
 }
 
 function dismissScanConfirmation(accept) {
@@ -303,21 +305,31 @@ function dismissScanConfirmation(accept) {
   const mode = state.scanMode, draft = drafts[mode], view = batchViews[mode];
   if (accept && state.candidate) draft.codes.push(state.candidate);
   state.candidate = null; $("scanConfirmation").hidden = true; $("scanEnd").disabled = false;
+  setScanUiState("ready");
   renderScannedCodes(mode); syncBatchControls(mode); scanner.resume();
   status("scanStatus", draft.codes.length >= MAX_BATCH_SIZE ? `已达到50张上限，请结束扫码并${view.label}。` : "请将下一张二维码对准相机。继续扫描同一码前请先将其移出画面。");
   $("scanEnd").focus();
 }
 
 async function startScanning() {
+  setScanUiState("starting");
   $("scanRetry").hidden = true; $("scanRetry").disabled = true;
   status("scanStatus", "正在启动相机…");
-  if (await scanner.start()) status("scanStatus", "请将二维码对准相机，识别后逐张确认。");
+  if (await scanner.start()) { setScanUiState("ready"); status("scanStatus", "请将二维码对准相机，识别后逐张确认。"); }
+}
+
+function setScanUiState(value) {
+  $("scanDialog").dataset.scanState = value;
+  $("scanPhase").textContent = { idle: "准备扫码", starting: "正在启动相机", ready: "扫描中", confirm: "等待确认", error: "相机未开启" }[value];
+  $("scanClose").disabled = value === "confirm";
+  $("scanEnd").hidden = value === "confirm";
 }
 
 function finishScanning() {
   const mode = state.scanMode;
   scanner.stop(); state.candidate = null; state.scanMode = null;
   $("scanConfirmation").hidden = true; $("scanEnd").disabled = false;
+  setScanUiState("idle");
   if ($("scanDialog").open) $("scanDialog").close();
   if (mode && $(batchViews[mode].dialog).open) $(mode === "issue" && !drafts.issue.codes.length ? "issueEmptyScan" : batchViews[mode].scanOpen).focus({ preventScroll: true });
 }
@@ -326,6 +338,7 @@ $("scanRetry").addEventListener("click", startScanning);
 $("scanConfirm").addEventListener("click", () => dismissScanConfirmation(true));
 $("scanCancel").addEventListener("click", () => dismissScanConfirmation(false));
 $("scanEnd").addEventListener("click", finishScanning);
+$("scanClose").addEventListener("click", finishScanning);
 $("scanDialog").addEventListener("cancel", (event) => { event.preventDefault(); if (state.candidate) dismissScanConfirmation(false); else finishScanning(); });
 $("scanDialog").addEventListener("close", () => { if (!$("scanDialog").open) finishScanning(); });
 $("scanConfirmation").addEventListener("keydown", (event) => {

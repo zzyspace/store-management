@@ -26,6 +26,13 @@ export async function checkScanner({ page, f, checkSize }) {
       await checkSize(`scanner-confirm-${theme}-${width}`, width);
       const rect = await page.locator("#scanConfirmation").boundingBox();
       assert.ok(rect.x >= 0 && rect.x + rect.width <= width);
+      const camera = await page.locator(".camera-stage").boundingBox();
+      const confirm = await page.locator("#scanConfirm").boundingBox();
+      assert.ok(rect.y >= camera.y + camera.height, "confirmation card sits below the live camera");
+      assert.ok(camera.height >= 80 && confirm.y + confirm.height <= page.viewportSize().height);
+      assert.equal(await page.locator("#scanClose").isDisabled(), true);
+      assert.equal(await page.locator("#scanEnd").isVisible(), false);
+      assert.equal(await page.locator("#scanPhase").textContent(), "等待确认");
       assert.ok(await page.locator("#scanConfirm").isVisible());
     }
   }
@@ -34,6 +41,17 @@ export async function checkScanner({ page, f, checkSize }) {
   await page.waitForTimeout(650);
   assert.equal(await page.locator("#scanConfirmation").isVisible(), false, "cancelled stationary QR does not reopen");
   await showQr(page, null); await page.waitForTimeout(650);
+  const longCode = `FUZZY-ZY-${"9".repeat(191)}`;
+  await page.setViewportSize({ width: 320, height: 640 });
+  await showQr(page, longCode);
+  await page.locator("#scanConfirmation").getByText(longCode, { exact: true }).waitFor();
+  const confirm = await page.locator("#scanConfirm").boundingBox();
+  assert.ok(confirm.y + confirm.height <= 640, "long code leaves confirmation actions visible");
+  const content = await page.locator(".scan-confirmation-body").evaluate(node => ({ width: node.clientWidth, scroll: node.scrollWidth }));
+  assert.ok(content.scroll <= content.width + 1);
+  await checkSize("scanner-long-code-dark-320", 320);
+  await page.locator("#scanCancel").click();
+  await page.setViewportSize({ width: 390, height: 844 });
   await scanAndConfirm(page, "FUZZY-100-9001");
   await scanAndConfirm(page, "FUZZY-ZY-9002");
   await page.waitForTimeout(500);
@@ -69,7 +87,7 @@ export async function checkScanner({ page, f, checkSize }) {
     else await route.fulfill({ response });
   });
   await page.locator("#issueSubmit").click();
-  await page.getByRole("button", { name: "重试发放", exact: true }).waitFor();
+  await page.getByRole("button", { name: "重试激活", exact: true }).waitFor();
   assert.equal(await form.locator('[name="reason"]').isDisabled(), true);
   assert.equal(await page.locator("#scanOpen").isDisabled(), true);
   assert.equal(await page.locator("#issueBack").isDisabled(), true);
@@ -96,6 +114,7 @@ export async function checkScanner({ page, f, checkSize }) {
   await openIssueScanner(page);
   await page.locator("#scanRetry").waitFor();
   assert.match(await page.locator("#scanStatus").innerText(), /权限/);
+  assert.equal(await page.locator("#scanPhase").textContent(), "相机未开启");
   await page.evaluate(() => { window.testCamera.error = null; });
   await page.locator("#scanRetry").click(); await scanAndConfirm(page, "FUZZY-ZY-9002");
   await page.evaluate(() => { document.getElementById("scanVideo").srcObject.getVideoTracks()[0].dispatchEvent(new Event("ended")); });
@@ -105,7 +124,7 @@ export async function checkScanner({ page, f, checkSize }) {
   await page.evaluate(() => { window.testCamera.defer = true; });
   await openIssueScanner(page);
   await page.waitForFunction(() => typeof window.testCamera.resolveStart === "function");
-  await page.locator("#scanEnd").click();
+  await page.locator("#scanClose").click();
   await page.evaluate(() => { window.testCamera.resolveStart(); window.testCamera.defer = false; });
   await page.waitForFunction(() => window.testCamera.tracks.every((track) => track.readyState === "ended"));
   assert.equal(await page.locator("#scannedCodes li").count(), 1);
