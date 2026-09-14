@@ -2,7 +2,7 @@ import express from "express";
 import path from "node:path";
 import { createGatewayAuth, gatewayAuthConfig } from "./gateway-auth.js";
 import { allowedStores, OperationError, requirePermission, requireStore, STORES, TYPES, validateAuthorization } from "./policy.js";
-import { normalizeCoupon } from "./repository.js";
+import { normalizeBatch, normalizeCoupon } from "./repository.js";
 
 export function createApp({ repository, env = process.env }) {
   const config = gatewayAuthConfig({ ...env, ADMIN_AUTH_MODE: env.ADMIN_AUTH_MODE ?? "unified" });
@@ -18,6 +18,7 @@ export function createApp({ repository, env = process.env }) {
     next();
   });
   // Static assets contain no account or coupon data and must load on an expired session.
+  app.get("/store/assets/vendor/jsQR.js", (_request, response) => response.sendFile(path.resolve(import.meta.dirname, "../node_modules/jsqr/dist/jsQR.js")));
   app.use("/store/assets", express.static(path.resolve(import.meta.dirname, "../public/assets"), { dotfiles: "deny", index: false }));
   app.use("/store", createGatewayAuth({ app: "store", config, validate: validateAuthorization }));
   app.use("/store/api", express.json({ limit: "16kb" }));
@@ -55,6 +56,13 @@ export function createApp({ repository, env = process.env }) {
     const item = Number.isSafeInteger(id) && id > 0 ? repository.get(id) : null;
     if (!item || item.store !== store) throw new OperationError(404, "未找到该门店的优惠券。");
     response.json({ success: true, item: repository.redeem(id, store, auth.account.accountId) });
+  });
+  app.post("/store/api/coupons/batch", (request, response) => {
+    const auth = response.locals.gatewayAuthorization;
+    requirePermission(auth, "coupon:issue");
+    const store = requireStore(auth, request.body?.store);
+    const input = normalizeBatch(request.body);
+    response.json({ success: true, ...repository.issueBatch(store, input, auth.account.accountId) });
   });
   app.use((_request, response) => response.status(404).json({ success: false, error: { message: "页面或接口不存在。" } }));
   app.use((error, _request, response, _next) => {

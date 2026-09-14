@@ -1,6 +1,8 @@
 "use strict";
+import { MAX_BATCH_SIZE, parseCouponCode } from "./coupon-code.js";
+import { CouponScanner } from "./coupon-scanner.js";
 const $ = (id) => document.getElementById(id);
-const state = { session: null, store: "", page: 1, total: 0, items: [], request: 0, issuing: false, redeeming: false, issueStore: "", redeemItem: null, loading: false };
+const state = { session: null, store: "", page: 1, total: 0, items: [], request: 0, issuing: false, redeeming: false, issueStore: "", redeemItem: null, loading: false, codes: [], candidate: null, pendingBatch: null };
 const dateFormat = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
 const dateText = (value) => value ? dateFormat.format(new Date(value)) : "—";
 const storeLabel = (id) => state.session?.stores.find((store) => store.id === id)?.label || id;
@@ -12,6 +14,8 @@ async function api(url, options = {}) {
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.success) {
     if (response.status === 401) {
+      finishScanning();
+      $("issueDialog").close();
       state.session = null;
       $("issueOpen").hidden = true;
       $("storeSelect").disabled = true;
@@ -90,14 +94,16 @@ function setBusy(dialogId, busy) {
 $("issueOpen").addEventListener("click", () => {
   if (!can("coupon:issue")) return;
   const form = $("issueForm"); form.reset();
-  for (const name of ["code", "reason", "operator"]) form.elements[name].setCustomValidity("");
+  state.codes = []; state.pendingBatch = null;
+  for (const name of ["reason", "operator"]) form.elements[name].setCustomValidity("");
   state.issueStore = state.store; $("issueStore").textContent = storeLabel(state.issueStore);
   form.elements.operator.value = state.session.account.displayName;
   form.elements.issuedAt.value = dateText(new Date()).slice(0, 16).replace(" ", "T");
+  renderScannedCodes(); syncIssueControls();
   status("issueStatus"); $("issueDialog").showModal();
 });
 
-for (const name of ["code", "reason", "operator"]) {
+for (const name of ["reason", "operator"]) {
   const input = $("issueForm").elements[name];
   input.addEventListener("input", () => input.setCustomValidity(""));
 }
@@ -106,19 +112,114 @@ $("issueForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (state.issuing) return;
   const form = event.currentTarget;
-  for (const [name, label] of [["code", "券码"], ["reason", "赠送原因"], ["operator", "操作人"]]) {
-    form.elements[name].setCustomValidity(form.elements[name].value.trim() ? "" : `请填写${label}。`);
+  if (!state.pendingBatch) {
+    for (const [name, label] of [["reason", "赠送原因"], ["operator", "操作人"]]) {
+      form.elements[name].setCustomValidity(form.elements[name].value.trim() ? "" : `请填写${label}。`);
+    }
+    if (!form.reportValidity()) return;
+    if (!state.codes.length) { status("issueStatus", "请先批量扫码并确认至少一张优惠券。", true); return; }
+    state.pendingBatch = { requestId: crypto.randomUUID(), store: state.issueStore, codes: state.codes.map((item) => item.code), reason: form.elements.reason.value, operator: form.elements.operator.value, issuedAt: `${form.elements.issuedAt.value}+08:00` };
   }
-  if (!form.reportValidity()) return;
-  const body = { store: state.issueStore, type: form.elements.type.value, code: form.elements.code.value, reason: form.elements.reason.value, operator: form.elements.operator.value, issuedAt: `${form.elements.issuedAt.value}+08:00` };
-  state.issuing = true; setBusy("issueDialog", true); status("issueStatus", "正在发放…");
+  state.issuing = true; syncIssueControls(); status("issueStatus", "正在发放…");
   try {
-    await api("/store/api/coupons", { method: "POST", body: JSON.stringify(body) });
-    $("issueDialog").close(); state.page = 1;
-    if (await loadList()) status("pageStatus", "优惠券已发放。");
-  } catch (error) { status("issueStatus", error.message, true); }
-  finally { state.issuing = false; setBusy("issueDialog", false); }
+    const result = await api("/store/api/coupons/batch", { method: "POST", body: JSON.stringify(state.pendingBatch) });
+    if (!Array.isArray(result.results) || result.results.length !== state.pendingBatch.codes.length) throw new Error("未收到完整的发放结果。");
+    state.pendingBatch = null;
+    state.codes = result.results.filter((item) => !item.success).map((item) => ({ ...state.codes[item.index], error: item.error.message }));
+    renderScannedCodes();
+    const message = `已发放 ${result.issuedCount} 张${result.failedCount ? `，${result.failedCount} 张失败，请核对下方原因。` : "。"}`;
+    if (result.failedCount) status("issueStatus", message, true);
+    else $("issueDialog").close();
+    state.page = 1;
+    const loaded = await loadList();
+    if (loaded) status("pageStatus", message, Boolean(result.failedCount));
+    else if (state.session) $("pageStatus").prepend(`${message} `);
+  } catch (error) {
+    if (error.status >= 400 && error.status < 500) state.pendingBatch = null;
+    status("issueStatus", state.pendingBatch ? "尚未确认发放结果。请点击“重试发放”查询原批次结果，确认结果前暂不可修改内容。" : error.message, true);
+  }
+  finally { state.issuing = false; syncIssueControls(); }
 });
+
+function syncIssueControls() {
+  setBusy("issueDialog", state.issuing);
+  const locked = state.issuing || Boolean(state.pendingBatch);
+  $("issueForm").querySelectorAll("input, textarea, [data-remove-code]").forEach((control) => { control.disabled = locked; });
+  $("scanOpen").disabled = locked || state.codes.length >= MAX_BATCH_SIZE;
+  $("issueSubmit").textContent = state.issuing ? "正在发放…" : state.pendingBatch ? "重试发放" : "发放";
+}
+
+function renderScannedCodes() {
+  $("scanCount").textContent = `已扫描 ${state.codes.length} / ${MAX_BATCH_SIZE} 张`;
+  $("scanConfirmedCount").textContent = state.codes.length;
+  $("scannedCodes").replaceChildren(...state.codes.map((item) => {
+    const row = document.createElement("li"), content = document.createElement("div"), code = document.createElement("strong"), type = document.createElement("span"), remove = document.createElement("button");
+    code.textContent = item.code; code.className = "scanned-code";
+    type.textContent = state.session.types[item.type]; type.className = "muted";
+    content.append(code, type);
+    if (item.error) { const error = document.createElement("p"); error.className = "coupon-error"; error.textContent = item.error; content.append(error); }
+    remove.type = "button"; remove.textContent = "移除"; remove.dataset.removeCode = item.code; remove.setAttribute("aria-label", `移除 ${item.code}`);
+    remove.addEventListener("click", () => { if (state.issuing || state.pendingBatch) return; state.codes = state.codes.filter((entry) => entry.code !== item.code); renderScannedCodes(); syncIssueControls(); });
+    row.append(content, remove); return row;
+  }));
+}
+
+const scanner = new CouponScanner({ video: $("scanVideo"), onCode: confirmScannedCode, onError(message) {
+  state.candidate = null; $("scanConfirmation").hidden = true; $("scanEnd").disabled = false;
+  status("scanStatus", message, true); $("scanRetry").hidden = false; $("scanRetry").disabled = false;
+} });
+
+function confirmScannedCode(value) {
+  try {
+    const item = parseCouponCode(value, state.issueStore);
+    if (state.codes.some((entry) => entry.code === item.code)) throw new Error("该券码已加入，请扫描下一张。");
+    if (state.codes.length >= MAX_BATCH_SIZE) throw new Error(`已达到${MAX_BATCH_SIZE}张上限，请结束扫码并发放。`);
+    state.candidate = item;
+    const nodes = [];
+    for (const [label, value] of [["券码", item.code], ["门店", storeLabel(item.store)], ["类型", state.session.types[item.type]]]) {
+      const term = document.createElement("dt"), detail = document.createElement("dd"); term.textContent = label; detail.textContent = value; nodes.push(term, detail);
+    }
+    $("scanSummary").replaceChildren(...nodes); status("scanStatus");
+    $("scanConfirmation").hidden = false; $("scanEnd").disabled = true; $("scanConfirm").focus();
+  } catch (error) { status("scanStatus", error.message, true); scanner.resume(); }
+}
+
+function dismissScanConfirmation(accept) {
+  if (accept && state.candidate) state.codes.push(state.candidate);
+  state.candidate = null; $("scanConfirmation").hidden = true; $("scanEnd").disabled = false;
+  renderScannedCodes(); syncIssueControls(); scanner.resume();
+  status("scanStatus", state.codes.length >= MAX_BATCH_SIZE ? "已达到50张上限，请结束扫码并发放。" : "请将下一张二维码对准相机。继续扫描同一码前请先将其移出画面。");
+  $("scanEnd").focus();
+}
+
+async function startScanning() {
+  $("scanRetry").hidden = true; $("scanRetry").disabled = true;
+  status("scanStatus", "正在启动相机…");
+  if (await scanner.start()) status("scanStatus", "请将二维码对准相机，识别后逐张确认。");
+}
+
+function finishScanning() {
+  scanner.stop(); state.candidate = null; $("scanConfirmation").hidden = true; $("scanEnd").disabled = false;
+  if ($("scanDialog").open) $("scanDialog").close();
+}
+
+$("scanOpen").addEventListener("click", () => {
+  if (state.issuing || state.pendingBatch || !can("coupon:issue")) return;
+  $("scanStore").textContent = storeLabel(state.issueStore); $("scanDialog").showModal(); startScanning();
+});
+$("scanRetry").addEventListener("click", startScanning);
+$("scanConfirm").addEventListener("click", () => dismissScanConfirmation(true));
+$("scanCancel").addEventListener("click", () => dismissScanConfirmation(false));
+$("scanEnd").addEventListener("click", finishScanning);
+$("scanDialog").addEventListener("cancel", (event) => { event.preventDefault(); if (state.candidate) dismissScanConfirmation(false); else finishScanning(); });
+$("scanDialog").addEventListener("close", () => { scanner.stop(); if ($("issueDialog").open) $("scanOpen").focus(); });
+$("scanConfirmation").addEventListener("keydown", (event) => {
+  if (event.key !== "Tab") return;
+  event.preventDefault(); (document.activeElement === $("scanConfirm") ? $("scanCancel") : $("scanConfirm")).focus();
+});
+$("issueDialog").addEventListener("close", () => { finishScanning(); state.codes = []; state.pendingBatch = null; });
+window.addEventListener("pagehide", finishScanning);
+document.addEventListener("visibilitychange", () => { if (document.hidden && $("scanDialog").open) scanner.fail("相机已暂停，已确认券码仍保留。返回后请点击“重试相机”。"); });
 
 function openRedeem(item) {
   if (!can("coupon:redeem")) return;
@@ -141,7 +242,7 @@ $("redeemForm").addEventListener("submit", async (event) => {
   finally { state.redeeming = false; setBusy("redeemDialog", false); }
 });
 
-for (const dialog of document.querySelectorAll("dialog")) {
+for (const dialog of [$("issueDialog"), $("redeemDialog")]) {
   dialog.addEventListener("cancel", (event) => { if (dialog.dataset.busy === "true") event.preventDefault(); });
   dialog.addEventListener("close", () => { (dialog.id === "issueDialog" ? $("issueOpen") : $("couponRows").querySelector("button"))?.focus(); });
 }

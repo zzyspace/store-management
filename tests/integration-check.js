@@ -42,3 +42,33 @@ test("real gateway enforces store identity, permissions, origin, scopes, version
   try { assert.equal((await fetch(`http://127.0.0.1:${server.address().port}/store/api/session`)).status, 503); }
   finally { await new Promise((resolve) => server.close(resolve)); }
 });
+
+test("batch endpoint authorizes first, supports partial results and concurrent request replay", async (t) => {
+  const { randomUUID } = await import("node:crypto");
+  const f = await fixture(); t.after(() => f.close());
+  const data = { requestId: randomUUID(), store: "fuzzy", codes: ["FUZZY-100-001", "FUZZY-ZY-002", "PEANUT-ZY-003", "bad-code"], reason: "整批赠送", operator: "手工操作人", issuedAt: "2026-09-14T12:00+08:00" };
+  const post = (cookie, body = data, headers) => f.request("/store/api/coupons/batch", cookie, { method: "POST", body: JSON.stringify(body), headers });
+  assert.equal((await post("")).status, 401);
+  assert.equal((await post(f.cookies.partner)).status, 403);
+  assert.equal((await post(f.cookies.manager, { ...data, store: "peanut" })).status, 403);
+  assert.equal((await post(f.cookies.manager, data, { Origin: "https://evil.test" })).status, 403);
+  assert.equal((await post(f.cookies.manager, { ...data, reason: " " })).status, 400);
+  assert.equal(f.repository.list("fuzzy", 1).total, 0);
+  const replies = await Promise.all([post(f.cookies.manager), post(f.cookies.manager)]);
+  assert.deepEqual(replies.map((r) => r.status), [200, 200]);
+  const [first, replay] = await Promise.all(replies.map((r) => r.json()));
+  assert.deepEqual(first, replay); assert.equal(first.issuedCount, 2); assert.equal(first.failedCount, 2);
+  assert.equal(first.results[0].item.type, "cash_100"); assert.equal(first.results[1].item.type, "free_drink");
+  assert.equal(f.repository.list("fuzzy", 1).total, 2);
+  assert.equal((await post(f.cookies.manager, { ...data, codes: ["FUZZY-ZY-9"] })).status, 409);
+  const duplicate = await (await post(f.cookies.manager, { ...data, requestId: randomUUID() })).json();
+  assert.equal(duplicate.issuedCount, 0); assert.equal(duplicate.failedCount, 4);
+  assert.equal((await post(f.cookies.manager, { ...data, requestId: randomUUID(), codes: Array(51).fill("FUZZY-ZY-9") })).status, 400);
+  // Replays still require current store authorization.
+  f.grant("manager", "manager", ["peanut"], ["coupon:view"]);
+  assert.equal((await post(f.cookies.manager)).status, 401);
+  for (const asset of ["coupon-code.js", "coupon-scanner.js", "vendor/jsQR.js"]) {
+    const reply = await f.request(`/store/assets/${asset}`);
+    assert.equal(reply.status, 200); assert.match(reply.headers.get("content-type"), /javascript/);
+  }
+});

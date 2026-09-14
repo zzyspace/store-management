@@ -1,6 +1,6 @@
 # 门店管理
 
-统一登录后台 `/store`，第一版包含优惠券列表、发放和手动核销。沿用报账后台浅深主题与导航样式。数据独立保存在 SQLite，不调用外部发券平台。
+统一登录后台 `/store`，包含优惠券列表、连续扫码批量发放和手动核销。沿用报账后台浅深主题与导航样式。数据独立保存在 SQLite，不调用外部发券平台。
 
 ## 本地启动
 
@@ -23,7 +23,10 @@ npm start
 - 管理员和合伙人的 `viewScope.stores` 固定为 `all`；店长可选择一家或多家。角色不隐含操作权限，也不授予账号管理入口。
 - 门店编码为 `fuzzy`、`fuzzy_qz`、`peanut`。配置 `viewScope.ownership` 为 `any`，只看顶部所选门店，不提供跨店汇总。
 - 类型为 `cash_100`（100元代金券）、`free_drink`（赠饮券）。券码去除首尾空白，保留大小写，各门店内唯一。
-- 类型、券码、赠送原因、操作人、发放时间均必填。发放时间在界面按上海时区输入，接口必须含显式时区。
+- 批量发放的券码格式为 `门店代码-券类型-数字编号`：`FUZZY` / `FUZZYQZ` / `PEANUT` 对应上述三家门店，`ZY` 为赠饮券，`100` 为100元代金券。例如 `FUZZYQZ-ZY-2026101`。必须大写，编号不限定长度且保留前导零，完整券码最多200字符；跨店券码拒绝加入。
+- 类型由券码自动识别；券码通过扫码加入，每张确认后才进入清单，可移除、不可编辑。每批1至50张，整批共用赠送原因、操作人及发放时间。发放时间在界面按上海时区输入，接口必须含显式时区。
+- 扫码页优先启动后置相机，确认框仅暂停识别，实时视频持续播放；结束扫码或离开页面释放相机。页面转入后台时释放相机，返回后手动重试并保留已确认券码。浏览器需要 HTTPS（本机 localhost/回环地址亦可）及相机权限。jsQR 1.4.0 从本服务提供，画面在浏览器中解码、不上传。
+- 已发放或同批重复券逐张返回失败，其余有效券正常保存。部分成功后只保留失败券及原因供移除或重试；网络结果不明时锁定内容并使用原批次重试。刷新页面或取消发放丢弃当前草稿。
 - 新券为未核销；核销时间由服务器记录，不支持修改、删除或撤销。操作人可编辑，实际创建及核销账号独立留痕。
 - 权限变更后旧的该后台会话失效，重新登录生效；不影响其他应用权限版本。
 
@@ -36,10 +39,15 @@ npm start
 | `GET /store/api/session` | 账号显示名、stores、permissions、features、types |
 | `GET /store/api/coupons?store=fuzzy&page=1` | items、total、page、pageSize（固定 50） |
 | `POST /store/api/coupons` | store、type、code、reason、operator、issuedAt；返回 item，201 |
+| `POST /store/api/coupons/batch` | requestId（UUID v4）、store、codes（1至50个券码）、reason、operator、issuedAt；返回逐券 results、issuedCount、failedCount，200 |
 | `POST /store/api/coupons/:id/redeem` | store；返回 item，200 |
 | `GET /health/store` | 不含业务数据的健康检查 |
 
 错误使用 `{ success: false, error: { message, field? } }`。参数错误为 400，登录/授权会话失效为 401，操作或门店越权为 403，当前门店找不到券为 404，重复券码或已核销为 409，网关不可用为 503。
+
+批量接口先校验授权、门店和公共字段；通过后响应为 `{ success: true, requestId, results, issuedCount, failedCount }`。`results` 按提交顺序包含 `index、code、success`，成功项附 `item`，失败项附 `error: { message, field }`。部分乃至全部券码失败仍返回200和逐券结果；HTTP错误表示整次请求未正常完成。
+
+`coupon_issue_batches` 表以账号和 `requestId` 为唯一键，保存请求摘要及结果，与有效券记录在同一事务内提交。原批次重试返回原结果，同一标识对应不同内容返回409；每次重试仍校验当前权限。系统级数据库异常整批回滚。结果不明时使用原请求重试，收到确定结果后对失败券发起新的 `requestId`。旧单张接口保留原校验规则，历史券码不进行格式迁移。
 
 ## 验证
 
@@ -52,6 +60,8 @@ STORE_PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
 STORE_CHROME_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
 npm run test:browser
 ```
+
+浏览器测试包含真实二维码图像经 canvas 视频流解码、确认时暂停解码但视频保持播放、权限失败、设备中断、迟到的相机授权、部分成功及丢失响应后的原请求重试。二维码图案固定在 `tests/fixtures/qr-codes.json`，测试仅替换相机来源，不替换 jsQR 的实际解码结果。
 
 联调和浏览器检查均使用临时数据库、临时账号和动态回环端口，结束后清理。截图及尺寸记录位于 `outputs/browser-check/`（Git 忽略），其中数据为测试数据。
 

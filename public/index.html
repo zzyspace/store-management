@@ -4,7 +4,8 @@
 <meta name="color-scheme" content="light dark"><title>门店管理</title>
 <script src="/store/assets/theme.js"></script>
 <link rel="stylesheet" href="/store/assets/style.css">
-<script src="/store/assets/app.js" defer></script>
+<script src="/store/assets/vendor/jsQR.js" defer></script>
+<script src="/store/assets/app.js" type="module"></script>
 </head><body><div class="page"><nav class="topbar" aria-label="门店管理导航">
         <div class="center-switcher" id="centerSwitcher">
           <button class="center-switcher-trigger" id="centerSwitcherTrigger" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="centerSwitcherMenu" disabled>
@@ -39,7 +40,7 @@
 
 
 <main>
-<header class="hero"><div><h1>优惠券管理</h1><p id="storeDescription">查看优惠券发放与核销记录。</p></div><button class="primary" id="issueOpen" hidden>＋ 新增优惠券</button></header>
+<header class="hero"><div><h1>优惠券管理</h1><p id="storeDescription">查看优惠券发放与核销记录。</p></div><button class="primary" id="issueOpen" hidden>＋ 发放优惠券</button></header>
 <p class="status" id="pageStatus" role="status" aria-live="polite"></p>
 <section class="panel" aria-label="已发放优惠券">
 <div class="panel-heading"><h2>已发放优惠券</h2><span class="pill" id="totalPill">总数 0</span></div>
@@ -51,18 +52,37 @@
 </section>
 </main></div>
 <dialog id="issueDialog" aria-labelledby="issueTitle"><form id="issueForm">
-<div class="modal-heading"><h2 id="issueTitle">新增优惠券</h2><button type="button" class="close" data-close="issueDialog" aria-label="关闭新增优惠券弹窗">×</button></div>
+<div class="modal-heading"><h2 id="issueTitle">发放优惠券</h2><button type="button" class="close" data-close="issueDialog" aria-label="关闭发放优惠券弹窗">×</button></div>
+<div class="issue-fields">
 <p class="muted">发放门店：<strong id="issueStore"></strong></p>
 <div class="form-grid">
-<label>类型<select name="type" required><option value="">请选择类型</option><option value="cash_100">100元代金券</option><option value="free_drink">赠饮券</option></select></label>
-<label>券码<input name="code" required maxlength="200" autocomplete="off" placeholder="请输入券码"></label>
+<section class="wide scanned-coupons" aria-label="待发放券码">
+<div class="scan-list-heading"><button type="button" id="scanOpen">批量扫码</button><span id="scanCount" class="pill" aria-live="polite">已扫描 0 / 50 张</span></div>
+<p class="muted">券码由扫码添加，可移除误扫项，每批最多50张。</p>
+<ul id="scannedCodes" class="scanned-codes"></ul>
+</section>
 <label class="wide">赠送原因<textarea name="reason" required maxlength="1000" rows="3" placeholder="请输入赠送原因"></textarea></label>
 <label>操作人<input name="operator" required maxlength="200" autocomplete="off"></label>
 <label>发放时间<input name="issuedAt" type="datetime-local" step="60" required></label>
 </div>
+</div>
 <p class="status" id="issueStatus" role="status" aria-live="polite"></p>
 <div class="modal-actions"><button type="button" data-close="issueDialog">取消</button><button type="submit" class="primary" id="issueSubmit">发放</button></div>
 </form></dialog>
+<dialog id="scanDialog" class="scanner-dialog" aria-labelledby="scanTitle">
+<div class="scanner-heading"><h2 id="scanTitle">批量扫码</h2><button type="button" id="scanEnd">结束扫码</button></div>
+<p class="scanner-context"><span id="scanStore"></span> · 已确认 <strong id="scanConfirmedCount">0</strong> 张</p>
+<div class="camera-stage">
+<video id="scanVideo" autoplay muted playsinline aria-label="实时相机画面"></video>
+<div class="scan-guide" aria-hidden="true"></div>
+<section id="scanConfirmation" class="scan-confirmation" role="alertdialog" aria-modal="true" aria-labelledby="scanConfirmTitle" hidden>
+<h2 id="scanConfirmTitle">确认券码</h2><dl id="scanSummary"></dl>
+<div class="modal-actions"><button type="button" id="scanCancel">取消</button><button type="button" class="primary" id="scanConfirm">确认</button></div>
+</section>
+</div>
+<p id="scanStatus" class="status" role="status" aria-live="polite"></p>
+<button type="button" id="scanRetry" hidden>重试相机</button>
+</dialog>
 <dialog id="redeemDialog" aria-labelledby="redeemTitle"><form id="redeemForm">
 <div class="modal-heading"><h2 id="redeemTitle">确认核销</h2><button type="button" class="close" data-close="redeemDialog" aria-label="关闭核销弹窗">×</button></div>
 <dl id="redeemSummary"></dl><p class="muted">核销时间将记录为当前时间，核销后暂不支持撤销。</p>

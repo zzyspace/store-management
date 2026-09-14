@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fixture } from "./integration-fixture.js";
+import { checkScanner } from "./scanner-browser-check.js";
+import { installCamera, scanAndConfirm } from "./scanner-browser-fixture.js";
 
 const { chromium } = await import(process.env.STORE_PLAYWRIGHT_MODULE || "playwright");
 const f = await fixture();
@@ -9,6 +11,7 @@ const browser = await chromium.launch({ ...(process.env.STORE_CHROME_PATH ? { ex
 const output = path.resolve(process.env.STORE_BROWSER_OUTPUT || "outputs/browser-check"); fs.mkdirSync(output, { recursive: true });
 const errors = [], measurements = [];
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: "America/Los_Angeles" });
+await installCamera(context);
 const page = await context.newPage(); page.on("pageerror", (error) => errors.push(error.message));
 async function loginAs(role) { await context.clearCookies(); await context.addCookies([{ name: "admin_session", value: f.cookies[role].split("=")[1], url: f.base }]); }
 const seed = { type: "cash_100", reason: "周年活动回馈老客", operator: "测试操作人", issuedAt: Date.parse("2026-09-09T14:20:00+08:00") };
@@ -22,6 +25,10 @@ async function checkSize(label, width) {
   });
   assert.ok(size.scroll <= width, `${label} page overflows: ${JSON.stringify(size)}`);
   if (size.dialog) assert.ok(size.dialog.left >= 0 && size.dialog.right <= width && size.dialog.top >= 0 && size.dialog.bottom <= size.viewportHeight);
+  if (await page.locator("#issueDialog").isVisible() && !await page.locator("#scanDialog").isVisible()) {
+    const submit = await page.locator("#issueSubmit").boundingBox();
+    assert.ok(submit.y >= 0 && submit.y + submit.height <= size.viewportHeight, "issuance actions remain in the viewport");
+  }
   measurements.push({ label, ...size });
   await page.screenshot({ path: path.join(output, `${label}.png`), fullPage: true });
 }
@@ -50,8 +57,11 @@ try {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.locator("#issueOpen").click();
   const form = page.locator("#issueForm");
-  await form.locator('[name="type"]').selectOption("cash_100");
-  await form.locator('[name="code"]').fill("BROWSER-001");
+  assert.equal(await form.locator('[name="type"], [name="code"]').count(), 0);
+  await page.locator("#scanOpen").click();
+  await scanAndConfirm(page, "FUZZY-100-9001");
+  await page.locator("#scanEnd").click();
+  assert.equal(await page.locator("#scannedCodes li").count(), 1);
   await page.locator("#issueSubmit").click();
   assert.equal(await form.locator('[name="reason"]').evaluate((input) => input.validity.valueMissing), true);
   await form.locator('[name="reason"]').fill("   "); await page.locator("#issueSubmit").click();
@@ -59,14 +69,16 @@ try {
   await form.locator('[name="reason"]').fill("浏览器验收赠送");
   await form.locator('[name="operator"]').fill("指定操作人");
   await page.locator("#issueSubmit").click();
-  await page.getByText("BROWSER-001", { exact: true }).waitFor();
-  const row = page.locator("#couponRows tr").filter({ hasText: "BROWSER-001" });
+  await page.locator("#couponRows").getByText("FUZZY-100-9001", { exact: true }).waitFor();
+  const row = page.locator("#couponRows tr").filter({ hasText: "FUZZY-100-9001" });
   assert.match(await row.innerText(), /指定操作人/);
   await row.getByRole("button", { name: "核销", exact: true }).click();
   await checkSize("redeem-confirmation", 1440);
   await page.locator("#redeemSubmit").click();
-  await page.waitForFunction(() => [...document.querySelectorAll("#couponRows tr")].some((row) => row.textContent.includes("BROWSER-001") && row.textContent.includes("已核销")));
+  await page.waitForFunction(() => [...document.querySelectorAll("#couponRows tr")].some((row) => row.textContent.includes("FUZZY-100-9001") && row.textContent.includes("已核销")));
   assert.equal(await row.locator("button").count(), 0);
+
+  await checkScanner({ page, f, checkSize });
 
   // Release an older store response after a newer selection has already rendered.
   await page.locator("#storeSelect").selectOption("peanut"); await page.getByText("PN-20260909-001", { exact: true }).waitFor();
@@ -80,10 +92,10 @@ try {
   assert.equal(await page.getByText("FZ-20260909-001", { exact: true }).count(), 0);
   assert.equal(await page.locator("#storeSelect").inputValue(), "peanut"); await page.unrouteAll();
 
-  await loginAs("manager"); await page.goto(f.base + "/store"); await page.getByText("BROWSER-001", { exact: true }).waitFor();
+  await loginAs("manager"); await page.goto(f.base + "/store"); await page.locator("#couponRows").getByText("FUZZY-100-9001", { exact: true }).waitFor();
   assert.equal(await page.locator("#storeSelect").isDisabled(), true);
   assert.equal(await page.locator("#storeSelect option").count(), 1);
-  await loginAs("partner"); await page.goto(f.base + "/store"); await page.getByText("BROWSER-001", { exact: true }).waitFor();
+  await loginAs("partner"); await page.goto(f.base + "/store"); await page.locator("#couponRows").getByText("FUZZY-100-9001", { exact: true }).waitFor();
   assert.equal(await page.locator("#issueOpen").isVisible(), false); assert.equal(await page.locator(".redeem-button").count(), 0);
 
   // Exercise the real account management form and its per-role scope controls.
@@ -109,7 +121,7 @@ try {
   await context.clearCookies(); await page.goto(f.base + "/login?returnTo=/store");
   await page.locator("#username").fill("manager"); await page.locator("#password").fill("local-fixture-password");
   await page.getByRole("button", { name: "登录", exact: true }).click(); await page.waitForURL("**/store");
-  await page.getByText("BROWSER-001", { exact: true }).waitFor();
+  await page.locator("#couponRows").getByText("FUZZY-100-9001", { exact: true }).waitFor();
   // Verify actual SVG visibility and shared icon appearance for a switchable account.
   f.grant("owner", "admin", "all");
   for (const [app, permission] of [["invoice", "submission:view"], ["staff", "employee:view"], ["expense", "report:view"]]) {
