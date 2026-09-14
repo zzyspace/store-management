@@ -42,15 +42,24 @@
 <main>
 <header class="hero"><div><h1>优惠券管理</h1><p id="storeDescription">查看优惠券发放与核销记录。</p></div><div class="hero-actions"><button class="primary" id="issueOpen" hidden>＋ 发放优惠券</button><button class="primary" id="redeemOpen" hidden>核销优惠券</button></div></header>
 <p class="status" id="pageStatus" role="status" aria-live="polite"></p>
-<section class="panel" aria-label="已发放优惠券">
-<div class="panel-heading"><h2>已发放优惠券</h2><span class="pill" id="totalPill">总数 0</span></div>
-<div class="table-scroll" tabindex="0" aria-label="优惠券列表，可横向滚动"><table>
-<thead><tr><th>状态</th><th>类型</th><th>券码</th><th>赠送原因</th><th>发放操作人</th><th>发放时间</th><th>核销操作人</th><th>核销时间</th></tr></thead>
-<tbody id="couponRows"><tr><td colspan="8" class="empty">正在加载…</td></tr></tbody>
-</table></div>
+<section class="panel coupon-panel" aria-label="已发放优惠券">
+<div class="panel-heading"><h2>已发放优惠券</h2><span class="coupon-total" id="totalPill">共 0 张</span></div>
+<div class="coupon-list-head" aria-hidden="true"><span>优惠券</span><span>状态</span><span>赠送原因</span><span>发放记录</span><span></span></div>
+<ul id="couponRows" class="coupon-list" aria-label="优惠券列表"><li class="empty">正在加载…</li></ul>
 <footer class="pagination"><span id="pageInfo">第 1 页</span><div><button id="previousPage" disabled>上一页</button><button id="nextPage" disabled>下一页</button></div></footer>
 </section>
 </main></div>
+<dialog id="couponDetailDialog" class="coupon-detail-dialog" aria-labelledby="couponDetailTitle">
+<div class="coupon-detail-heading"><h2 id="couponDetailTitle">优惠券详情</h2><button type="button" class="close" data-close="couponDetailDialog" aria-label="关闭优惠券详情" autofocus>×</button></div>
+<div class="coupon-detail-content">
+<div class="coupon-detail-tags"><span id="detailType" class="tag"></span><span id="detailState" class="tag"></span></div>
+<p id="detailCode" class="coupon-code detail-code"></p><p id="detailStore" class="detail-store"></p>
+<section class="coupon-detail-section"><h3>赠送原因</h3><p id="detailReason" class="detail-reason"></p></section>
+<section class="coupon-detail-section detail-audit"><span class="detail-marker" aria-hidden="true">发</span><div><h3>发放记录</h3><p id="detailIssueOperator"></p><time id="detailIssuedAt"></time></div></section>
+<section class="coupon-detail-section detail-audit"><span class="detail-marker detail-marker-redeem" aria-hidden="true">核</span><div><h3>核销记录</h3><p id="detailRedeemOperator"></p><time id="detailRedeemedAt"></time></div></section>
+</div>
+<div class="coupon-detail-footer"><p class="status" id="detailStatus" role="status" aria-live="polite"></p><button type="button" id="copyCouponCode">复制券码</button></div>
+</dialog>
 <dialog id="issueDialog" class="batch-dialog" aria-labelledby="issueTitle"><form id="issueForm" class="batch-form">
 <div class="modal-heading"><h2 id="issueTitle">发放优惠券</h2><button type="button" class="close" data-close="issueDialog" aria-label="关闭发放优惠券弹窗">×</button></div>
 <div class="issue-fields">

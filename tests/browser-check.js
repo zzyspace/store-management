@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fixture } from "./integration-fixture.js";
+import { checkCouponList } from "./coupon-list-browser-check.js";
 import { checkRedemption } from "./redemption-browser-check.js";
 import { checkScanner } from "./scanner-browser-check.js";
 import { installCamera, scanAndConfirm } from "./scanner-browser-fixture.js";
@@ -22,7 +23,7 @@ f.repository.redeem(2, "fuzzy", "fixture");
 async function checkSize(label, width) {
   const size = await page.evaluate(() => {
     const rect = (selector) => { const r = document.querySelector(selector)?.getBoundingClientRect(); return r ? { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height } : null; };
-    return { viewport: innerWidth, viewportHeight: innerHeight, scroll: document.documentElement.scrollWidth, topbar: rect(".topbar"), table: rect(".table-scroll"), dialog: rect("dialog[open]") };
+    return { viewport: innerWidth, viewportHeight: innerHeight, scroll: document.documentElement.scrollWidth, topbar: rect(".topbar"), list: rect(".coupon-list"), dialog: rect("dialog[open]") };
   });
   assert.ok(size.scroll <= width, `${label} page overflows: ${JSON.stringify(size)}`);
   if (size.dialog) assert.ok(size.dialog.left >= 0 && size.dialog.right <= width && size.dialog.top >= 0 && size.dialog.bottom <= size.viewportHeight);
@@ -42,7 +43,7 @@ async function checkSize(label, width) {
     }
   }
   measurements.push({ label, ...size });
-  await page.screenshot({ path: path.join(output, `${label}.png`), fullPage: true });
+  await page.screenshot({ path: path.join(output, `${label}.png`), fullPage: !label.startsWith("detail-b-") && !label.startsWith("list-b-") });
 }
 
 try {
@@ -82,16 +83,16 @@ try {
   await form.locator('[name="operator"]').fill("指定操作人");
   await page.locator("#issueSubmit").click();
   await page.locator("#couponRows").getByText("FUZZY-100-9001", { exact: true }).waitFor();
-  const row = page.locator("#couponRows tr").filter({ hasText: "FUZZY-100-9001" });
+  const row = page.locator("#couponRows .coupon-row").filter({ hasText: "FUZZY-100-9001" });
   assert.match(await row.innerText(), /指定操作人/);
-  assert.equal(await page.locator("#couponRows button").count(), 0);
+  assert.equal(await page.locator("#couponRows").getByRole("button", { name: "核销", exact: true }).count(), 0);
   await page.locator("#redeemOpen").click();
   await page.locator("#redeemScanOpen").click();
   await scanAndConfirm(page, "FUZZY-100-9001");
   await page.locator("#scanEnd").click();
   await checkSize("redeem-confirmation", 1440);
   await page.locator("#redeemSubmit").click();
-  await page.waitForFunction(() => [...document.querySelectorAll("#couponRows tr")].some((row) => row.textContent.includes("FUZZY-100-9001") && row.textContent.includes("已核销")));
+  await page.waitForFunction(() => [...document.querySelectorAll("#couponRows .coupon-row")].some((row) => row.textContent.includes("FUZZY-100-9001") && row.textContent.includes("已核销")));
   assert.equal(await row.locator("button").count(), 0);
 
   await checkScanner({ page, f, checkSize });
@@ -186,6 +187,7 @@ try {
       assert.equal(await page.locator("#centerSwitcherMenu").isVisible(), false);
     }
   }
+  await checkCouponList({ page, f, checkSize });
   assert.deepEqual(errors, []);
   fs.writeFileSync(path.join(output, "measurements.json"), JSON.stringify(measurements, null, 2));
   console.log(`Browser checks passed (${measurements.length} screenshots): ${output}`);

@@ -17,7 +17,7 @@ export async function checkRedemption({ page, f, checkSize }) {
   assert.equal(await form.locator('[name="reason"]').count(), 0);
   assert.equal(await form.locator('[name="operator"]').inputValue(), '测试admin');
   assert.ok(Math.abs(Date.parse((await form.locator('[name="redeemedAt"]').inputValue()) + '+08:00') - Date.now()) < 61000);
-  assert.deepEqual(await page.locator('thead th').allTextContents(), ['状态', '类型', '券码', '赠送原因', '发放操作人', '发放时间', '核销操作人', '核销时间']);
+  assert.deepEqual((await page.locator('.coupon-list-head span').allTextContents()).filter(Boolean), ['优惠券', '状态', '赠送原因', '发放记录']);
   await page.evaluate(() => { window.redeemCameraBefore = window.testCamera.calls; });
   await page.locator('#redeemScanOpen').click();
   await showQr(page, first.code);
@@ -78,10 +78,13 @@ export async function checkRedemption({ page, f, checkSize }) {
   await page.waitForFunction(() => document.getElementById('pageStatus').textContent.includes('已核销 2 张'));
   assert.notEqual(bodies[2].requestId, bodies[0].requestId); assert.deepEqual(bodies[2].codes, [later.code, extra.code]);
   await page.unroute('**/store/api/coupons/redeem-batch');
-  const row = page.locator('#couponRows tr').filter({ hasText: first.code });
-  assert.equal(await row.locator('td').nth(4).innerText(), '发放记录人');
-  assert.equal(await row.locator('td').nth(6).innerText(), '柜台核销人');
-  assert.equal(await page.locator('#couponRows button').count(), 0);
+  const row = page.locator('#couponRows .coupon-row').filter({ hasText: first.code });
+  assert.match(await row.locator('.coupon-issue-summary').innerText(), /发放记录人/);
+  await row.click();
+  assert.equal(await page.locator('#detailIssueOperator').innerText(), '发放记录人');
+  assert.equal(await page.locator('#detailRedeemOperator').innerText(), '柜台核销人');
+  await page.locator('#couponDetailDialog [data-close]').click();
+  assert.equal(await page.locator('#couponRows').getByRole('button', { name: '核销', exact: true }).count(), 0);
   await page.locator('#redeemOpen').click(); await page.locator('#redeemScanOpen').click();
   await scanAndConfirm(page, first.code); await scanAndConfirm(page, 'FUZZY-ZY-9199'); await page.locator('#scanEnd').click();
   await page.locator('#redeemSubmit').click();

@@ -1,0 +1,92 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import Database from 'better-sqlite3';
+
+export async function checkCouponList({ page, f, checkSize }) {
+  const issuedAt = Date.now() - 2000;
+  const seed = { type: 'cash_100', reason: '列表分页验收', operator: '发放测试人', issuedAt };
+  for (let i = 0; i < 52; i++) f.repository.issue('fuzzy', { ...seed, code: `FUZZY-100-${80000 + i}`, issuedAt: issuedAt + i }, 'fixture');
+  const code = `FUZZY-100-${'9'.repeat(190)}`;
+  const reason = '<img src=x onerror=alert(1)>\n' + '长原因'.repeat(200);
+  const operator = '发放记录人'.repeat(40), redeemer = '核销记录人'.repeat(40);
+  const long = f.repository.issue('fuzzy', { ...seed, code, reason, operator, issuedAt: Date.now() - 1000 }, 'fixture');
+  f.repository.redeem(long.id, 'fuzzy', 'fixture', redeemer);
+  const history = f.repository.issue('fuzzy', { ...seed, code: 'LEGACY-HISTORY-1', issuedAt: Date.now() - 900 }, 'fixture');
+  f.repository.redeem(history.id, 'fuzzy', 'fixture', '历史核销');
+  const db = new Database(path.join(f.stateDir, 'coupons.db'));
+  db.prepare('UPDATE coupons SET redeemed_operator = NULL WHERE id=?').run(history.id); db.close();
+  const writes = [];
+  const observe = request => { if (request.url().startsWith(f.base) && !['GET', 'HEAD'].includes(request.method())) writes.push(request.method() + ' ' + request.url()); };
+  page.on('request', observe);
+  try {
+    await page.goto(f.base + '/store');
+    const row = page.locator(`[data-coupon-id="${long.id}"]`);
+    await row.waitFor();
+    assert.equal(await page.locator('#couponRows .coupon-row').count(), 50);
+    assert.equal(await page.locator('#nextPage').isEnabled(), true);
+    for (const theme of ['light', 'dark']) for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: width === 1440 ? 1000 : width === 390 ? 844 : 640 });
+      await page.evaluate(theme => { document.documentElement.dataset.theme = theme; document.documentElement.style.colorScheme = theme; }, theme);
+      await checkSize(`list-b-${theme}-${width}`, width);
+      const dimensions = await page.locator('#couponRows').evaluate(list => ({ width: list.clientWidth, scroll: list.scrollWidth }));
+      assert.ok(dimensions.scroll <= dimensions.width + 1);
+      await row.click();
+      assert.equal(await page.locator('#detailCode').innerText(), code);
+      assert.equal(await page.locator('#detailReason').innerText(), reason);
+      assert.equal(await page.locator('#detailReason img').count(), 0);
+      assert.equal(await page.locator('#detailIssueOperator').innerText(), operator);
+      assert.equal(await page.locator('#detailRedeemOperator').innerText(), redeemer);
+      assert.equal(await page.locator('#detailIssuedAt').getAttribute('datetime'), new Date(long.issuedAt).toISOString());
+      await checkSize(`detail-b-${theme}-${width}`, width);
+      const rect = await page.locator('#couponDetailDialog').boundingBox();
+      const viewport = page.viewportSize();
+      assert.ok(Math.abs(rect.x + rect.width - viewport.width) <= 1);
+      assert.ok(Math.abs(rect.y + rect.height - viewport.height) <= 1);
+      if (width === 1440) assert.ok(rect.width <= 460 && rect.y === 0, 'desktop side panel');
+      else assert.ok(rect.width >= width - 1 && rect.y > 0, 'mobile bottom sheet');
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(id => document.activeElement?.dataset.couponId === String(id), long.id);
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await row.focus(); await page.keyboard.press('Enter'); await page.locator('#couponDetailDialog').waitFor();
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await page.locator('#copyCouponCode').evaluate(button => button === document.activeElement), true, 'native dialog traps focus');
+    await page.evaluate(() => { window.copiedCoupon = null; window.failCouponCopy = false; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { if (window.failCouponCopy) throw new Error('denied'); window.copiedCoupon = text; } } }); });
+    await page.locator('#copyCouponCode').click();
+    await page.waitForFunction(() => document.getElementById('detailStatus').textContent === '券码已复制。');
+    assert.equal(await page.evaluate(() => window.copiedCoupon), code);
+    await page.evaluate(() => { window.failCouponCopy = true; }); await page.locator('#copyCouponCode').click();
+    await page.waitForFunction(() => document.getElementById('detailStatus').textContent.includes('复制失败'));
+    await page.mouse.click(20, 20); await page.locator('#couponDetailDialog').waitFor({ state: 'hidden' });
+    assert.equal(await page.locator('#detailCode').textContent(), '');
+    await page.locator(`[data-coupon-id="${history.id}"]`).click();
+    assert.equal(await page.locator('#detailRedeemOperator').innerText(), '—');
+    assert.equal(await page.locator('#detailRedeemedAt').isVisible(), true);
+    await page.locator('#couponDetailDialog [data-close]').click();
+    await page.locator('#nextPage').click(); await page.waitForFunction(() => document.getElementById('pageInfo').textContent.startsWith('第 2'));
+    const pending = page.locator('#couponRows .coupon-row').filter({ hasText: '未核销' }).first(); await pending.click();
+    assert.equal(await page.locator('#detailRedeemOperator').innerText(), '暂无核销记录');
+    assert.equal(await page.locator('#detailRedeemedAt').isVisible(), false);
+    // A refresh/store change closes and clears the previous record before new data arrives.
+    await page.evaluate(() => { const select = document.getElementById('storeSelect'); select.value = 'peanut'; select.dispatchEvent(new Event('change')); });
+    await page.locator('#couponDetailDialog').waitFor({ state: 'hidden' });
+    await page.locator('#couponRows').getByText('PN-20260909-001', { exact: true }).waitFor();
+    assert.equal(await page.locator('#detailCode').textContent(), '');
+    await page.route('**/store/api/coupons?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, items: [], total: 0, page: 1, pageSize: 50 }) }));
+    await page.evaluate(() => document.getElementById('storeSelect').dispatchEvent(new Event('change')));
+    await page.locator('#couponRows').getByText('该门店暂无优惠券').waitFor();
+    await page.unroute('**/store/api/coupons?**');
+    await page.route('**/store/api/coupons?**', route => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ success: false, error: { message: '测试查询失败' } }) }));
+    await page.evaluate(() => document.getElementById('storeSelect').dispatchEvent(new Event('change')));
+    await page.getByRole('button', { name: '重试', exact: true }).waitFor();
+    await page.unroute('**/store/api/coupons?**'); await page.getByRole('button', { name: '重试', exact: true }).click();
+    await page.locator('#couponRows').getByText('PN-20260909-001', { exact: true }).click();
+    await page.route('**/store/api/coupons?**', route => route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ success: false, error: { message: '会话失效' } }) }));
+    await page.evaluate(() => document.getElementById('storeSelect').dispatchEvent(new Event('change')));
+    await page.waitForFunction(() => document.getElementById('pageStatus').textContent.includes('登录或授权已失效'));
+    assert.equal(await page.locator('#couponDetailDialog').isVisible(), false);
+    assert.equal(await page.locator('#detailCode').textContent(), '');
+    assert.deepEqual(writes, [], 'viewing and copying never issue or redeem coupons');
+    await page.unroute('**/store/api/coupons?**');
+  } finally { page.off('request', observe); }
+}

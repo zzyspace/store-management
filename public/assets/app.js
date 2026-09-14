@@ -2,7 +2,7 @@
 import { MAX_BATCH_SIZE, parseCouponCode } from "./coupon-code.js";
 import { CouponScanner } from "./coupon-scanner.js";
 const $ = (id) => document.getElementById(id);
-const state = { session: null, store: "", page: 1, total: 0, items: [], request: 0, loading: false, candidate: null, scanMode: null };
+const state = { session: null, store: "", page: 1, total: 0, items: [], request: 0, loading: false, candidate: null, scanMode: null, detailItem: null, detailTrigger: null };
 const dateFormat = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
 const dateText = (value) => value ? dateFormat.format(new Date(value)) : "—";
 const storeLabel = (id) => state.session?.stores.find((store) => store.id === id)?.label || id;
@@ -14,6 +14,7 @@ async function api(url, options = {}) {
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.success) {
     if (response.status === 401) {
+      closeCouponDetail();
       finishScanning();
       $("issueDialog").close(); $("redeemDialog").close();
       state.session = null;
@@ -31,37 +32,95 @@ async function api(url, options = {}) {
 }
 
 function renderPagination() {
-  $("totalPill").textContent = `总数 ${state.total}`;
+  $("totalPill").textContent = `共 ${state.total} 张`;
   $("pageInfo").textContent = `第 ${state.page} / ${Math.max(1, Math.ceil(state.total / 50))} 页`;
   $("previousPage").disabled = state.loading || state.page <= 1;
   $("nextPage").disabled = state.loading || state.page * 50 >= state.total;
 }
 
 function emptyRow(message) {
-  const row = document.createElement("tr"), cell = document.createElement("td");
-  cell.colSpan = 8; cell.className = "empty"; cell.textContent = message; row.append(cell); $("couponRows").replaceChildren(row);
+  const row = document.createElement("li");
+  row.className = "empty"; row.textContent = message; $("couponRows").replaceChildren(row);
 }
 
 function renderRows() {
   if (!state.items.length) { emptyRow("该门店暂无优惠券"); return; }
   const rows = state.items.map((item) => {
-    const row = document.createElement("tr");
-    const values = [item.status === "redeemed" ? "已核销" : "未核销", state.session.types[item.type], item.code, item.reason, item.operator, dateText(item.issuedAt), item.redeemedOperator || "—", dateText(item.redeemedAt)];
-    for (const [index, value] of values.entries()) {
-      const cell = document.createElement("td");
-      if (index < 2) {
-        const tag = document.createElement("span"); tag.className = `tag ${index === 0 ? item.status : item.type}`; tag.textContent = value; cell.append(tag);
-      } else { cell.textContent = value; }
-      if (index === 2) cell.className = "code";
-      if ([3, 4, 6].includes(index)) cell.className = "wrapping";
-      row.append(cell);
-    }
+    const row = document.createElement("li"), button = document.createElement("button"), identity = document.createElement("span");
+    button.type = "button"; button.className = "coupon-row"; button.dataset.couponId = item.id;
+    button.setAttribute("aria-label", `查看 ${item.code} 详情`); button.setAttribute("aria-haspopup", "dialog"); button.setAttribute("aria-controls", "couponDetailDialog");
+    identity.className = "coupon-identity";
+    const code = document.createElement("span"), type = document.createElement("span"), tag = document.createElement("span"), reason = document.createElement("span"), audit = document.createElement("span"), chevron = document.createElement("span");
+    code.className = "coupon-code"; code.textContent = item.code; code.title = item.code;
+    type.className = `coupon-type ${item.type}`; type.textContent = state.session.types[item.type]; identity.append(code, type);
+    tag.className = `tag coupon-state ${item.status}`; tag.textContent = item.status === "redeemed" ? "已核销" : "未核销";
+    reason.className = "coupon-reason"; reason.textContent = item.reason; reason.title = item.reason;
+    audit.className = "coupon-issue-summary"; audit.textContent = `${item.operator} · ${dateText(item.issuedAt).slice(0, 16)} 发放`;
+    chevron.className = "coupon-chevron"; chevron.setAttribute("aria-hidden", "true");
+    button.append(identity, tag, reason, audit, chevron); button.addEventListener("click", () => openCouponDetail(item, button)); row.append(button);
     return row;
   });
   $("couponRows").replaceChildren(...rows);
 }
 
+function openCouponDetail(item, trigger) {
+  if (!can("coupon:view") || state.loading || item.store !== state.store) return;
+  state.detailItem = { ...item }; state.detailTrigger = trigger;
+  $("detailType").className = `tag ${item.type}`; $("detailType").textContent = state.session.types[item.type];
+  $("detailState").className = `tag coupon-state ${item.status}`; $("detailState").textContent = item.status === "redeemed" ? "已核销" : "未核销";
+  $("detailCode").textContent = item.code; $("detailStore").textContent = `门店：${storeLabel(item.store)}`;
+  $("detailReason").textContent = item.reason; $("detailIssueOperator").textContent = item.operator;
+  $("detailIssuedAt").textContent = dateText(item.issuedAt); $("detailIssuedAt").dateTime = item.issuedAt;
+  $("detailRedeemOperator").textContent = item.redeemedAt ? item.redeemedOperator || "—" : "暂无核销记录";
+  $("detailRedeemedAt").textContent = item.redeemedAt ? dateText(item.redeemedAt) : "";
+  $("detailRedeemedAt").dateTime = item.redeemedAt || ""; $("detailRedeemedAt").hidden = !item.redeemedAt;
+  $("copyCouponCode").disabled = false; status("detailStatus"); $("couponDetailDialog").showModal();
+  $("couponDetailDialog").querySelector(".coupon-detail-content").scrollTop = 0;
+  $("couponDetailDialog").querySelector("[data-close]").focus({ preventScroll: true });
+}
+
+function clearCouponDetail() {
+  state.detailItem = null;
+  for (const id of ["detailType", "detailState", "detailCode", "detailStore", "detailReason", "detailIssueOperator", "detailIssuedAt", "detailRedeemOperator", "detailRedeemedAt"]) $(id).textContent = "";
+  $("detailIssuedAt").removeAttribute("datetime"); $("detailRedeemedAt").removeAttribute("datetime"); status("detailStatus");
+}
+
+function closeCouponDetail() {
+  clearCouponDetail();
+  if ($("couponDetailDialog").open) $("couponDetailDialog").close();
+}
+
+$("couponDetailDialog").addEventListener("close", () => {
+  if ($("couponDetailDialog").open) return;
+  clearCouponDetail();
+  (state.detailTrigger?.isConnected ? state.detailTrigger : $("storeSelect")).focus({ preventScroll: true }); state.detailTrigger = null;
+});
+$("couponDetailDialog").addEventListener("click", (event) => {
+  if (event.target !== event.currentTarget) return;
+  const rect = event.currentTarget.getBoundingClientRect();
+  if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeCouponDetail();
+});
+$("couponDetailDialog").addEventListener("keydown", (event) => {
+  if (event.key !== "Tab") return;
+  const buttons = [...event.currentTarget.querySelectorAll("button:not(:disabled)")];
+  const first = buttons[0], last = buttons.at(-1);
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+});
+$("copyCouponCode").addEventListener("click", async () => {
+  const item = state.detailItem;
+  if (!item || !can("coupon:view")) return;
+  $("copyCouponCode").disabled = true;
+  try {
+    await navigator.clipboard.writeText(item.code);
+    if (state.detailItem === item) status("detailStatus", "券码已复制。");
+  } catch {
+    if (state.detailItem === item) status("detailStatus", "复制失败，请长按或选中券码复制。", true);
+  } finally { if (state.detailItem === item) $("copyCouponCode").disabled = false; }
+});
+
 async function loadList() {
+  closeCouponDetail();
   const request = ++state.request, store = state.store, page = state.page;
   state.loading = true; state.items = []; state.total = 0;
   emptyRow("正在加载…"); renderPagination(); status("pageStatus");
