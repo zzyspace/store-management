@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { showQr, openIssueScanner, scanAndConfirm } from './scanner-browser-fixture.js';
+import { showQr, openIssueScanner, openRedeemScanner, scanAndConfirm } from './scanner-browser-fixture.js';
 const localTime = (value) => new Date(value + 8 * 3600000).toISOString().slice(0, 16);
 
 export async function checkRedemption({ page, f, checkSize }) {
@@ -15,11 +15,17 @@ export async function checkRedemption({ page, f, checkSize }) {
   assert.equal(await page.locator('#redeemScannedCodes li').count(), 0, 'issuance draft never leaks into redemption');
   const form = page.locator('#redeemForm');
   assert.equal(await form.locator('[name="reason"]').count(), 0);
+  assert.equal(await page.locator('#redeemEmptyScan').isVisible(), true);
+  assert.equal(await page.locator('#redeemSubmit').isDisabled(), true);
+  assert.equal(await form.locator('.issue-steps').count(), 0);
+  assert.equal(await form.locator('[name="operator"]').isVisible(), true);
   assert.equal(await form.locator('[name="operator"]').inputValue(), '测试admin');
   assert.ok(Math.abs(Date.parse((await form.locator('[name="redeemedAt"]').inputValue()) + '+08:00') - Date.now()) < 61000);
   assert.deepEqual((await page.locator('.coupon-list-head span').allTextContents()).filter(Boolean), ['优惠券', '状态', '赠送原因', '激活记录']);
+  await form.locator('[name="operator"]').fill('扫码前填写的操作人');
+  await form.locator('[name="redeemedAt"]').fill(localTime(minute - 60000));
   await page.evaluate(() => { window.redeemCameraBefore = window.testCamera.calls; });
-  await page.locator('#redeemScanOpen').click();
+  await openRedeemScanner(page);
   await showQr(page, first.code);
   await page.locator('#scanConfirmation').getByText(first.code, { exact: true }).waitFor();
   assert.equal(await page.locator('#scanPurpose').textContent(), '核销优惠券');
@@ -37,6 +43,9 @@ export async function checkRedemption({ page, f, checkSize }) {
   await page.locator('#scanEnd').click();
   assert.equal(f.repository.get(first.id).status, 'unredeemed', 'scanning never redeems before final submit');
   assert.equal(await page.locator('#redeemScannedCodes li').count(), 4);
+  assert.equal(await form.locator('[name="operator"]').inputValue(), '扫码前填写的操作人');
+  assert.equal(await form.locator('[name="redeemedAt"]').inputValue(), localTime(minute - 60000));
+  assert.equal(await page.locator('#redeemSubmit').textContent(), '核销 4 张');
   assert.equal(await page.locator('#redeemScannedCodes input').count(), 0);
   for (const theme of ['light', 'dark']) for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: width === 1440 ? 1000 : width === 390 ? 844 : 640 });
@@ -75,7 +84,7 @@ export async function checkRedemption({ page, f, checkSize }) {
   await checkSize('redeem-partial-dark-390', 390);
   for (const code of ['FUZZY-100-9001', 'FUZZY-ZY-9199']) await page.locator('#redeemScannedCodes').getByRole('button', { name: `移除 ${code}`, exact: true }).click();
   await form.locator('[name="redeemedAt"]').fill(localTime(minute));
-  await page.locator('#redeemScanOpen').click(); await scanAndConfirm(page, extra.code); await page.locator('#scanEnd').click();
+  await openRedeemScanner(page); await scanAndConfirm(page, extra.code); await page.locator('#scanEnd').click();
   await page.locator('#redeemSubmit').click(); await page.locator('#redeemDialog').waitFor({ state: 'hidden' });
   await page.waitForFunction(() => document.getElementById('pageStatus').textContent.includes('已核销 2 张'));
   assert.notEqual(bodies[2].requestId, bodies[0].requestId); assert.deepEqual(bodies[2].codes, [later.code, extra.code]);
@@ -87,11 +96,15 @@ export async function checkRedemption({ page, f, checkSize }) {
   assert.equal(await page.locator('#detailRedeemOperator').innerText(), '柜台核销人');
   await page.locator('#couponDetailDialog [data-close]').click();
   assert.equal(await page.locator('#couponRows').getByRole('button', { name: '核销', exact: true }).count(), 0);
-  await page.locator('#redeemOpen').click(); await page.locator('#redeemScanOpen').click();
+  await page.locator('#redeemOpen').click(); await openRedeemScanner(page);
   await scanAndConfirm(page, first.code); await scanAndConfirm(page, 'FUZZY-ZY-9199'); await page.locator('#scanEnd').click();
   await page.locator('#redeemSubmit').click();
   await page.waitForFunction(() => document.getElementById('redeemStatus').textContent.includes('已核销 0 张，2 张失败'));
   assert.equal(await page.locator('#redeemScannedCodes li').count(), 2);
+  assert.equal(await page.locator('#redeemSubmit').textContent(), '重试核销 2 张');
+  for (const code of [first.code, 'FUZZY-ZY-9199']) await page.locator('#redeemScannedCodes').getByRole('button', { name: `移除 ${code}`, exact: true }).click();
+  assert.equal(await page.locator('#redeemEmptyScan').isVisible(), true);
+  assert.equal(await page.locator('#redeemSubmit').isDisabled(), true);
   await page.locator('#redeemDialog [data-close]').first().click();
   await page.locator('#issueOpen').click();
   assert.equal(await page.locator('#scannedCodes li').count(), 0, 'redemption results never leak into issuance');

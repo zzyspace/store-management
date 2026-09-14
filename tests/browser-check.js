@@ -6,7 +6,7 @@ import { checkIssueWizard } from "./issue-wizard-browser-check.js";
 import { checkCouponList } from "./coupon-list-browser-check.js";
 import { checkRedemption } from "./redemption-browser-check.js";
 import { checkScanner } from "./scanner-browser-check.js";
-import { installCamera, openIssueScanner, scanAndConfirm } from "./scanner-browser-fixture.js";
+import { installCamera, openIssueScanner, openRedeemScanner, scanAndConfirm } from "./scanner-browser-fixture.js";
 
 const { chromium } = await import(process.env.STORE_PLAYWRIGHT_MODULE || "playwright");
 const f = await fixture();
@@ -91,7 +91,7 @@ try {
   assert.match(await row.innerText(), /指定操作人/);
   assert.equal(await page.locator("#couponRows").getByRole("button", { name: "核销", exact: true }).count(), 0);
   await page.locator("#redeemOpen").click();
-  await page.locator("#redeemScanOpen").click();
+  await openRedeemScanner(page);
   await scanAndConfirm(page, "FUZZY-100-9001");
   await page.locator("#scanEnd").click();
   await checkSize("redeem-confirmation", 1440);
@@ -128,7 +128,7 @@ try {
   await page.locator("#couponRows").getByText("FUZZY-100-9001", { exact: true }).waitFor();
   assert.equal(await page.locator("#issueOpen").isVisible(), false);
   assert.equal(await page.locator("#redeemOpen").isVisible(), true);
-  await page.locator("#redeemOpen").click(); await page.locator("#redeemScanOpen").click();
+  await page.locator("#redeemOpen").click(); await openRedeemScanner(page);
   await scanAndConfirm(page, "FUZZY-ZY-9199"); await page.locator("#scanEnd").click();
   assert.equal(await page.locator("#redeemScannedCodes li").count(), 1);
   await page.locator('#redeemDialog [data-close]').first().click();

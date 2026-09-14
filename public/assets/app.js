@@ -178,6 +178,12 @@ function syncBatchControls(mode) {
     if (!draft.busy && !draft.pending) $("issueSubmit").textContent = empty ? "激活" : `激活 ${draft.codes.length} 张`;
     $("issueEmptyScan").hidden = !empty; $("issueEmptyScan").disabled = locked;
     $("scanOpen").hidden = empty; $("scannedCodes").hidden = empty;
+  } else {
+    const empty = draft.codes.length === 0;
+    $("redeemEmptyScan").hidden = !empty; $("redeemEmptyScan").disabled = locked;
+    $("redeemScanOpen").hidden = empty; $("redeemScannedCodes").hidden = empty;
+    $("redeemSubmit").disabled = draft.busy || empty;
+    if (!draft.busy && !draft.pending) $("redeemSubmit").textContent = empty ? "核销" : `${draft.codes.some(item => item.error) ? "重试核销" : "核销"} ${draft.codes.length} 张`;
   }
 }
 
@@ -191,15 +197,16 @@ function setIssueStep(step) {
 $("issueNext").addEventListener("click", () => setIssueStep(2));
 $("issueBack").addEventListener("click", () => setIssueStep(1));
 $("issueEmptyScan").addEventListener("click", () => openBatchScanner("issue"));
+$("redeemEmptyScan").addEventListener("click", () => openBatchScanner("redeem"));
 
 function renderScannedCodes(mode) {
   const view = batchViews[mode], draft = drafts[mode];
-  $(view.count).textContent = `${mode === "issue" ? "" : "已扫描 "}${draft.codes.length} / ${MAX_BATCH_SIZE} 张`;
+  $(view.count).textContent = `${draft.codes.length} / ${MAX_BATCH_SIZE} 张`;
   if (state.scanMode === mode) $("scanConfirmedCount").textContent = draft.codes.length;
   $(view.list).replaceChildren(...draft.codes.map((item) => {
     const row = document.createElement("li"), content = document.createElement("div"), code = document.createElement("strong"), type = document.createElement("span"), remove = document.createElement("button");
     code.textContent = item.code; code.className = "scanned-code";
-    type.textContent = state.session.types[item.type]; type.className = mode === "issue" ? `coupon-type ${item.type}` : "muted";
+    type.textContent = state.session.types[item.type]; type.className = `coupon-type ${item.type}`;
     content.append(code, type);
     if (item.error) { const error = document.createElement("p"); error.className = "coupon-error"; error.textContent = item.error; content.append(error); }
     remove.type = "button"; remove.textContent = "移除"; remove.dataset.removeCode = item.code; remove.setAttribute("aria-label", `移除 ${item.code}`);
@@ -331,7 +338,7 @@ function finishScanning() {
   $("scanConfirmation").hidden = true; $("scanEnd").disabled = false;
   setScanUiState("idle");
   if ($("scanDialog").open) $("scanDialog").close();
-  if (mode && $(batchViews[mode].dialog).open) $(mode === "issue" && !drafts.issue.codes.length ? "issueEmptyScan" : batchViews[mode].scanOpen).focus({ preventScroll: true });
+  if (mode && $(batchViews[mode].dialog).open) $(!drafts[mode].codes.length ? `${mode}EmptyScan` : batchViews[mode].scanOpen).focus({ preventScroll: true });
 }
 
 $("scanRetry").addEventListener("click", startScanning);

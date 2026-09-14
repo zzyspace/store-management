@@ -407,3 +407,41 @@ dt { color: var(--ink-soft); } dd { margin: 0; overflow-wrap: anywhere; }
   #issueForm > .modal-actions .primary { flex: 1; min-width: 0; }
 }
 #issueInformation input, #issueInformation textarea { font-weight: 400; }
+
+/* Approved redemption dialog A: compact scan list and shared fields on one page. */
+#redeemDialog { width: min(600px, calc(100vw - 40px)); max-height: calc(100dvh - 48px); padding: 0; }
+#redeemForm { max-height: calc(100dvh - 50px); }
+#redeemForm > .modal-heading { align-items: flex-start; padding: 24px 28px 18px; }
+#redeemTitle { font-size: 22px; letter-spacing: -.035em; }
+#redeemForm .modal-heading .close { min-width: 44px; min-height: 44px; border-radius: 50%; color: var(--ink-soft); background: var(--surface-muted); }
+#redeemForm .redeem-flow-body { padding: 0 28px; }
+#redeemInformation { border-top: 1px solid var(--line); padding-top: 21px; }
+#redeemInformation .form-grid { margin: 0; gap: 16px; }
+#redeemInformation label { font-size: 13px; font-weight: 550; }
+#redeemInformation input { font-weight: 400; }
+.redeem-time-rule { font-size: 12px; line-height: 1.75; margin: 15px 0 0; }
+#redeemDialog .scan-list-heading { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; margin-bottom: 8px; min-height: 44px; align-items: center; }
+#redeemScanOpen { border: 0; background: transparent; color: var(--brand); min-height: 44px; padding: 0 6px; font-size: 13px; }
+#redeemDialog .scanned-code { font-size: 14px; font-weight: 600; line-height: 1.5; }
+#redeemDialog .scanned-codes .coupon-type { display: block; margin-top: 2px; font-size: 12px; }
+#redeemDialog .scanned-codes li { padding: 9px 0; min-height: 62px; }
+#redeemDialog .scanned-codes li:last-child { border-bottom: 0; }
+#redeemDialog .scanned-codes button { min-width: 44px; min-height: 44px; border: 0; padding: 0 5px; background: transparent; color: var(--ink-soft); font-size: 12px; font-weight: 400; }
+#redeemDialog .coupon-error { display: flex; align-items: baseline; gap: 6px; }
+#redeemDialog .coupon-error::before { content: "!"; flex: 0 0 15px; width: 15px; height: 15px; border: 1px solid currentColor; border-radius: 50%; display: grid; place-items: center; font-size: 10px; line-height: 1; }
+#redeemStatus:not(:empty) { margin: 0 28px 16px; font-size: 13px; }
+#redeemStatus.error { background: rgba(255,59,48,.08); }
+#redeemForm > .modal-actions { border-top: 1px solid var(--line); padding: 18px 28px; gap: 12px; }
+#redeemForm > .modal-actions button { min-height: 44px; font-size: 14px; }
+#redeemSubmit { min-width: 135px; }
+@media (max-width: 760px) {
+  #redeemDialog { inset: auto 0 0; margin: 0; width: 100%; max-width: 100vw; max-height: 94dvh; border-radius: 24px 24px 0 0; border-bottom: 0; }
+  #redeemForm { max-height: calc(94dvh - 1px); }
+  #redeemForm > .modal-heading { padding: 21px 20px 16px; }
+  #redeemTitle { font-size: 21px; }
+  #redeemForm .redeem-flow-body { padding: 0 20px; }
+  #redeemInformation { padding-top: 18px; }
+  #redeemStatus:not(:empty) { margin: 0 20px 12px; }
+  #redeemForm > .modal-actions { padding: 15px 20px max(18px, env(safe-area-inset-bottom)); }
+  #redeemForm > .modal-actions .primary { flex: 1; min-width: 0; }
+}

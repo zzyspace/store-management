@@ -50,3 +50,10 @@ export async function openIssueScanner(page) {
   const empty = page.locator("#issueEmptyScan");
   await (await empty.isVisible() ? empty : page.locator("#scanOpen")).click();
 }
+
+export async function openRedeemScanner(page) {
+  if (!await page.evaluate(() => navigator.mediaDevices.getUserMedia === window.testCamera?.getUserMedia)) throw new Error("Camera fixture is not installed; refusing to request a real camera.");
+  await showQr(page, null);
+  const empty = page.locator("#redeemEmptyScan");
+  await (await empty.isVisible() ? empty : page.locator("#redeemScanOpen")).click();
+}
