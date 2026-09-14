@@ -40,18 +40,18 @@
 
 
 <main>
-<header class="hero"><div><h1>优惠券管理</h1><p id="storeDescription">查看优惠券发放与核销记录。</p></div><button class="primary" id="issueOpen" hidden>＋ 发放优惠券</button></header>
+<header class="hero"><div><h1>优惠券管理</h1><p id="storeDescription">查看优惠券发放与核销记录。</p></div><div class="hero-actions"><button class="primary" id="issueOpen" hidden>＋ 发放优惠券</button><button class="primary" id="redeemOpen" hidden>核销优惠券</button></div></header>
 <p class="status" id="pageStatus" role="status" aria-live="polite"></p>
 <section class="panel" aria-label="已发放优惠券">
 <div class="panel-heading"><h2>已发放优惠券</h2><span class="pill" id="totalPill">总数 0</span></div>
 <div class="table-scroll" tabindex="0" aria-label="优惠券列表，可横向滚动"><table>
-<thead><tr><th>状态</th><th>类型</th><th>券码</th><th>赠送原因</th><th>操作人</th><th>发放时间</th><th>核销时间</th><th>操作</th></tr></thead>
+<thead><tr><th>状态</th><th>类型</th><th>券码</th><th>赠送原因</th><th>发放操作人</th><th>发放时间</th><th>核销操作人</th><th>核销时间</th></tr></thead>
 <tbody id="couponRows"><tr><td colspan="8" class="empty">正在加载…</td></tr></tbody>
 </table></div>
 <footer class="pagination"><span id="pageInfo">第 1 页</span><div><button id="previousPage" disabled>上一页</button><button id="nextPage" disabled>下一页</button></div></footer>
 </section>
 </main></div>
-<dialog id="issueDialog" aria-labelledby="issueTitle"><form id="issueForm">
+<dialog id="issueDialog" class="batch-dialog" aria-labelledby="issueTitle"><form id="issueForm" class="batch-form">
 <div class="modal-heading"><h2 id="issueTitle">发放优惠券</h2><button type="button" class="close" data-close="issueDialog" aria-label="关闭发放优惠券弹窗">×</button></div>
 <div class="issue-fields">
 <p class="muted">发放门店：<strong id="issueStore"></strong></p>
@@ -83,10 +83,22 @@
 <p id="scanStatus" class="status" role="status" aria-live="polite"></p>
 <button type="button" id="scanRetry" hidden>重试相机</button>
 </dialog>
-<dialog id="redeemDialog" aria-labelledby="redeemTitle"><form id="redeemForm">
-<div class="modal-heading"><h2 id="redeemTitle">确认核销</h2><button type="button" class="close" data-close="redeemDialog" aria-label="关闭核销弹窗">×</button></div>
-<dl id="redeemSummary"></dl><p class="muted">核销时间将记录为当前时间，核销后暂不支持撤销。</p>
+<dialog id="redeemDialog" class="batch-dialog" aria-labelledby="redeemTitle"><form id="redeemForm" class="batch-form">
+<div class="modal-heading"><h2 id="redeemTitle">核销优惠券</h2><button type="button" class="close" data-close="redeemDialog" aria-label="关闭核销优惠券弹窗">×</button></div>
+<div class="issue-fields">
+<p class="muted">核销门店：<strong id="redeemStore"></strong></p>
+<div class="form-grid">
+<section class="wide scanned-coupons" aria-label="待核销券码">
+<div class="scan-list-heading"><button type="button" id="redeemScanOpen">批量扫码</button><span id="redeemScanCount" class="pill" aria-live="polite">已扫描 0 / 50 张</span></div>
+<p class="muted">扫码确认后加入清单，点击“核销”才会核销。每批最多50张。</p>
+<ul id="redeemScannedCodes" class="scanned-codes"></ul>
+</section>
+<label>操作人<input name="operator" required maxlength="200" autocomplete="off"></label>
+<label>核销时间<input name="redeemedAt" type="datetime-local" step="60" required></label>
+</div>
+<p class="muted">核销时间不能早于发放时间或晚于当前时间，核销后暂不支持撤销。</p>
+</div>
 <p class="status" id="redeemStatus" role="status" aria-live="polite"></p>
-<div class="modal-actions"><button type="button" data-close="redeemDialog">取消</button><button type="submit" class="primary" id="redeemSubmit">确认核销</button></div>
+<div class="modal-actions"><button type="button" data-close="redeemDialog">取消</button><button type="submit" class="primary" id="redeemSubmit">核销</button></div>
 </form></dialog>
 </body></html>

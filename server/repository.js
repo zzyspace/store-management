@@ -21,30 +21,49 @@ export function normalizeCoupon(body) {
 function normalizeIssueFields(body) {
   const reason = requiredText(body.reason, "赠送原因", "reason", 1000);
   const operator = requiredText(body.operator, "操作人", "operator", 200);
-  // Require an explicit offset so server/device local time zones cannot change meaning.
-  const match = typeof body.issuedAt === "string" && body.issuedAt.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/);
-  const issuedAt = match ? Date.parse(body.issuedAt) : NaN;
-  const wallClock = match ? `${match[1]}T${match[2]}:${match[3] ?? "00"}` : "";
-  const wallTime = Date.parse(`${wallClock}Z`);
-  if (!Number.isFinite(issuedAt) || !Number.isFinite(wallTime) || new Date(wallTime).toISOString().slice(0, 19) !== wallClock) {
-    throw new OperationError(400, "请选择有效的发放时间。", "issuedAt");
-  }
-  return { reason, operator, issuedAt };
+  return { reason, operator, issuedAt: normalizeTime(body.issuedAt, "发放时间", "issuedAt") };
 }
 
-export function normalizeBatch(body) {
+function normalizeTime(value, label, field) {
+  // Require an explicit offset so server/device local time zones cannot change meaning.
+  const match = typeof value === "string" && value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/);
+  const timestamp = match ? Date.parse(value) : NaN;
+  const wallClock = match ? `${match[1]}T${match[2]}:${match[3] ?? "00"}` : "";
+  const wallTime = Date.parse(`${wallClock}Z`);
+  if (!Number.isFinite(timestamp) || !Number.isFinite(wallTime) || new Date(wallTime).toISOString().slice(0, 19) !== wallClock) {
+    throw new OperationError(400, `请选择有效的${label}。`, field);
+  }
+  return timestamp;
+}
+
+function normalizeBatchEnvelope(body) {
   if (typeof body?.requestId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.requestId)) {
-    throw new OperationError(400, "批次标识无效，请重新打开发放页面。", "requestId");
+    throw new OperationError(400, "批次标识无效，请重新打开操作页面。", "requestId");
   }
   if (!Array.isArray(body.codes) || !body.codes.length || body.codes.length > MAX_BATCH_SIZE) {
     throw new OperationError(400, `每批需包含1至${MAX_BATCH_SIZE}张优惠券。`, "codes");
   }
-  return { requestId: body.requestId, codes: body.codes, ...normalizeIssueFields(body) };
+  return { requestId: body.requestId, codes: body.codes };
+}
+
+export function normalizeBatch(body) {
+  return { ...normalizeBatchEnvelope(body), ...normalizeIssueFields(body) };
+}
+
+export function normalizeRedeemBatch(body) {
+  return { ...normalizeBatchEnvelope(body), operator: requiredText(body.operator, "操作人", "operator", 200),
+    redeemedAt: normalizeTime(body.redeemedAt, "核销时间", "redeemedAt") };
+}
+
+function validateRedeemTime(value, currentTime) {
+  if (!Number.isFinite(value)) throw new OperationError(400, "请选择有效的核销时间。", "redeemedAt");
+  if (value > currentTime) throw new OperationError(400, "核销时间不能晚于当前时间。", "redeemedAt");
 }
 
 function serialize(row) {
   return { id: row.id, store: row.store, type: row.type, code: row.code, reason: row.reason,
     operator: row.operator, issuedAt: new Date(row.issued_at).toISOString(),
+    redeemedOperator: row.redeemed_operator ?? null,
     redeemedAt: row.redeemed_at === null ? null : new Date(row.redeemed_at).toISOString(),
     status: row.redeemed_at === null ? "unredeemed" : "redeemed" };
 }
@@ -79,7 +98,21 @@ export function createRepository({ stateDir, now = Date.now }) {
     result_json TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     PRIMARY KEY(account_id, request_id)
+  );
+  CREATE TABLE IF NOT EXISTS coupon_redeem_batches (
+    account_id TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    request_digest TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY(account_id, request_id)
   );`);
+  // Additive, repeatable migration: historical names remain unknown rather than inferred.
+  db.transaction(() => {
+    if (!db.pragma("table_info(coupons)").some((column) => column.name === "redeemed_operator")) {
+      db.exec("ALTER TABLE coupons ADD COLUMN redeemed_operator TEXT");
+    }
+  }).immediate();
   const find = db.prepare("SELECT * FROM coupons WHERE id = ?");
   const insert = db.prepare(`INSERT INTO coupons (store,type,code,reason,operator,issued_at,created_at,created_by_account_id)
     VALUES (?,?,?,?,?,?,?,?)`);
@@ -118,6 +151,50 @@ export function createRepository({ stateDir, now = Date.now }) {
       .run(accountId, input.requestId, digest, JSON.stringify(result), now());
     return result;
   });
+  function redeemOne(row, store, accountId, operator, redeemedAt) {
+    if (!row || row.store !== store) throw new OperationError(404, "该门店未发放此券，无法核销。", "code");
+    if (row.redeemed_at !== null) throw new OperationError(409, "该优惠券已核销。", "code");
+    if (redeemedAt < row.issued_at) throw new OperationError(409, "核销时间不能早于该券的发放时间。", "redeemedAt");
+    const result = db.prepare(`UPDATE coupons SET redeemed_at = ?, redeemed_by_account_id = ?, redeemed_operator = ?
+      WHERE id = ? AND store = ? AND redeemed_at IS NULL AND issued_at <= ?`).run(redeemedAt, accountId, operator, row.id, store, redeemedAt);
+    if (!result.changes) throw new OperationError(409, "该优惠券状态已变化，请刷新后重试。", "code");
+    return serialize(find.get(row.id));
+  }
+  const redeem = db.transaction((id, store, accountId, operator) => {
+    const redeemedAt = now();
+    validateRedeemTime(redeemedAt, redeemedAt);
+    return redeemOne(find.get(id), store, accountId, requiredText(operator, "操作人", "operator", 200), redeemedAt);
+  });
+  const redeemBatch = db.transaction((store, input, accountId) => {
+    const currentTime = now();
+    validateRedeemTime(input.redeemedAt, currentTime);
+    const digest = createHash("sha256").update(JSON.stringify({ store, codes: input.codes, operator: input.operator, redeemedAt: input.redeemedAt })).digest("hex");
+    const previous = db.prepare("SELECT * FROM coupon_redeem_batches WHERE account_id = ? AND request_id = ?").get(accountId, input.requestId);
+    if (previous) {
+      if (previous.request_digest !== digest) throw new OperationError(409, "该批次标识已用于不同的核销内容。", "requestId");
+      return JSON.parse(previous.result_json);
+    }
+    const seen = new Set();
+    const results = input.codes.map((value, index) => {
+      let parsed;
+      try { parsed = parseCouponCode(value, store); }
+      catch (error) { return { index, code: typeof value === "string" ? value : null, success: false, error: { message: error.message, field: "code" } }; }
+      if (seen.has(parsed.code)) return { index, code: parsed.code, success: false, error: { message: "本批次中券码重复。", field: "code" } };
+      seen.add(parsed.code);
+      try {
+        const row = db.prepare("SELECT * FROM coupons WHERE store = ? AND code = ?").get(store, parsed.code);
+        return { index, code: parsed.code, success: true, item: redeemOne(row, store, accountId, input.operator, input.redeemedAt) };
+      } catch (error) {
+        if (!(error instanceof OperationError)) throw error;
+        return { index, code: parsed.code, success: false, error: { message: error.message, field: error.field } };
+      }
+    });
+    const redeemedCount = results.filter((result) => result.success).length;
+    const result = { requestId: input.requestId, results, redeemedCount, failedCount: results.length - redeemedCount };
+    db.prepare("INSERT INTO coupon_redeem_batches (account_id,request_id,request_digest,result_json,created_at) VALUES (?,?,?,?,?)")
+      .run(accountId, input.requestId, digest, JSON.stringify(result), currentTime);
+    return result;
+  });
   return {
     close: () => db.close(),
     list(store, page) {
@@ -128,10 +205,7 @@ export function createRepository({ stateDir, now = Date.now }) {
     get(id) { const row = find.get(id); return row ? serialize(row) : null; },
     issue,
     issueBatch: (store, input, accountId) => issueBatch.immediate(store, input, accountId),
-    redeem(id, store, accountId) {
-      const result = db.prepare("UPDATE coupons SET redeemed_at = ?, redeemed_by_account_id = ? WHERE id = ? AND store = ? AND redeemed_at IS NULL").run(now(), accountId, id, store);
-      if (!result.changes) throw new OperationError(409, "该优惠券已核销，请刷新列表。");
-      return serialize(find.get(id));
-    },
+    redeem: (id, store, accountId, operator = accountId) => redeem.immediate(id, store, accountId, operator),
+    redeemBatch: (store, input, accountId) => redeemBatch.immediate(store, input, accountId),
   };
 }

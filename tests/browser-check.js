@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fixture } from "./integration-fixture.js";
+import { checkRedemption } from "./redemption-browser-check.js";
 import { checkScanner } from "./scanner-browser-check.js";
 import { installCamera, scanAndConfirm } from "./scanner-browser-fixture.js";
 
@@ -25,17 +26,20 @@ async function checkSize(label, width) {
   });
   assert.ok(size.scroll <= width, `${label} page overflows: ${JSON.stringify(size)}`);
   if (size.dialog) assert.ok(size.dialog.left >= 0 && size.dialog.right <= width && size.dialog.top >= 0 && size.dialog.bottom <= size.viewportHeight);
-  if (await page.locator("#issueDialog").isVisible() && !await page.locator("#scanDialog").isVisible()) {
-    const submit = await page.locator("#issueSubmit").boundingBox();
-    assert.ok(submit.y >= 0 && submit.y + submit.height <= size.viewportHeight, "issuance actions remain in the viewport");
-    const layout = await page.locator("#issueForm").evaluate((form) => {
-      const fields = form.querySelector(".issue-fields"), codes = form.querySelector("#scannedCodes"), date = form.elements.issuedAt;
-      return { fieldsOverflow: fields.scrollWidth - fields.clientWidth, formOverflow: form.scrollWidth - form.clientWidth,
-        dateOverflow: date.getBoundingClientRect().right - date.parentElement.getBoundingClientRect().right,
-        codesOverflow: codes.scrollHeight - codes.clientHeight };
-    });
-    assert.ok(layout.fieldsOverflow <= 1 && layout.formOverflow <= 1 && layout.dateOverflow <= 1, `issuance must not overflow horizontally: ${JSON.stringify(layout)}`);
-    assert.ok(layout.codesOverflow <= 1, "scanned coupons expand fully instead of having their own scrolling area");
+  if (!await page.locator("#scanDialog").isVisible()) {
+    for (const mode of ["issue", "redeem"]) {
+      if (!await page.locator(`#${mode}Dialog`).isVisible()) continue;
+      const submit = await page.locator(`#${mode}Submit`).boundingBox();
+      assert.ok(submit.y >= 0 && submit.y + submit.height <= size.viewportHeight, "batch actions remain in the viewport");
+      const layout = await page.locator(`#${mode}Form`).evaluate((form) => {
+        const fields = form.querySelector(".issue-fields"), codes = form.querySelector(".scanned-codes"), date = form.querySelector('[type="datetime-local"]');
+        return { fieldsOverflow: fields.scrollWidth - fields.clientWidth, formOverflow: form.scrollWidth - form.clientWidth,
+          dateOverflow: date.getBoundingClientRect().right - date.parentElement.getBoundingClientRect().right,
+          codesOverflow: codes.scrollHeight - codes.clientHeight };
+      });
+      assert.ok(layout.fieldsOverflow <= 1 && layout.formOverflow <= 1 && layout.dateOverflow <= 1, `batch must not overflow horizontally: ${JSON.stringify(layout)}`);
+      assert.ok(layout.codesOverflow <= 1, "scanned coupons expand fully instead of having their own scrolling area");
+    }
   }
   measurements.push({ label, ...size });
   await page.screenshot({ path: path.join(output, `${label}.png`), fullPage: true });
@@ -80,13 +84,18 @@ try {
   await page.locator("#couponRows").getByText("FUZZY-100-9001", { exact: true }).waitFor();
   const row = page.locator("#couponRows tr").filter({ hasText: "FUZZY-100-9001" });
   assert.match(await row.innerText(), /指定操作人/);
-  await row.getByRole("button", { name: "核销", exact: true }).click();
+  assert.equal(await page.locator("#couponRows button").count(), 0);
+  await page.locator("#redeemOpen").click();
+  await page.locator("#redeemScanOpen").click();
+  await scanAndConfirm(page, "FUZZY-100-9001");
+  await page.locator("#scanEnd").click();
   await checkSize("redeem-confirmation", 1440);
   await page.locator("#redeemSubmit").click();
   await page.waitForFunction(() => [...document.querySelectorAll("#couponRows tr")].some((row) => row.textContent.includes("FUZZY-100-9001") && row.textContent.includes("已核销")));
   assert.equal(await row.locator("button").count(), 0);
 
   await checkScanner({ page, f, checkSize });
+  await checkRedemption({ page, f, checkSize });
 
   // Release an older store response after a newer selection has already rendered.
   await page.locator("#storeSelect").selectOption("peanut"); await page.getByText("PN-20260909-001", { exact: true }).waitFor();
@@ -104,7 +113,20 @@ try {
   assert.equal(await page.locator("#storeSelect").isDisabled(), true);
   assert.equal(await page.locator("#storeSelect option").count(), 1);
   await loginAs("partner"); await page.goto(f.base + "/store"); await page.locator("#couponRows").getByText("FUZZY-100-9001", { exact: true }).waitFor();
-  assert.equal(await page.locator("#issueOpen").isVisible(), false); assert.equal(await page.locator(".redeem-button").count(), 0);
+  assert.equal(await page.locator("#issueOpen").isVisible(), false); assert.equal(await page.locator("#redeemOpen").isVisible(), false);
+  await loginAs("issuer"); await page.goto(f.base + "/store");
+  await page.locator("#couponRows").getByText("FUZZY-100-9001", { exact: true }).waitFor();
+  assert.equal(await page.locator("#issueOpen").isVisible(), true);
+  assert.equal(await page.locator("#redeemOpen").isVisible(), false);
+  f.cookies.redeemer = f.grant("redeemer", "manager", ["fuzzy"], ["coupon:view", "coupon:redeem"]);
+  await loginAs("redeemer"); await page.goto(f.base + "/store");
+  await page.locator("#couponRows").getByText("FUZZY-100-9001", { exact: true }).waitFor();
+  assert.equal(await page.locator("#issueOpen").isVisible(), false);
+  assert.equal(await page.locator("#redeemOpen").isVisible(), true);
+  await page.locator("#redeemOpen").click(); await page.locator("#redeemScanOpen").click();
+  await scanAndConfirm(page, "FUZZY-ZY-9199"); await page.locator("#scanEnd").click();
+  assert.equal(await page.locator("#redeemScannedCodes li").count(), 1);
+  await page.locator('#redeemDialog [data-close]').first().click();
 
   // Exercise the real account management form and its per-role scope controls.
   await loginAs("owner"); await page.goto(f.base + "/auth/accounts?account=manager");

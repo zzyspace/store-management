@@ -2,7 +2,7 @@ import express from "express";
 import path from "node:path";
 import { createGatewayAuth, gatewayAuthConfig } from "./gateway-auth.js";
 import { allowedStores, OperationError, requirePermission, requireStore, STORES, TYPES, validateAuthorization } from "./policy.js";
-import { normalizeBatch, normalizeCoupon } from "./repository.js";
+import { normalizeBatch, normalizeCoupon, normalizeRedeemBatch } from "./repository.js";
 
 export function createApp({ repository, env = process.env }) {
   const config = gatewayAuthConfig({ ...env, ADMIN_AUTH_MODE: env.ADMIN_AUTH_MODE ?? "unified" });
@@ -55,7 +55,7 @@ export function createApp({ repository, env = process.env }) {
     const id = Number(request.params.id);
     const item = Number.isSafeInteger(id) && id > 0 ? repository.get(id) : null;
     if (!item || item.store !== store) throw new OperationError(404, "未找到该门店的优惠券。");
-    response.json({ success: true, item: repository.redeem(id, store, auth.account.accountId) });
+    response.json({ success: true, item: repository.redeem(id, store, auth.account.accountId, auth.account.displayName || auth.account.username) });
   });
   app.post("/store/api/coupons/batch", (request, response) => {
     const auth = response.locals.gatewayAuthorization;
@@ -63,6 +63,12 @@ export function createApp({ repository, env = process.env }) {
     const store = requireStore(auth, request.body?.store);
     const input = normalizeBatch(request.body);
     response.json({ success: true, ...repository.issueBatch(store, input, auth.account.accountId) });
+  });
+  app.post("/store/api/coupons/redeem-batch", (request, response) => {
+    const auth = response.locals.gatewayAuthorization;
+    requirePermission(auth, "coupon:redeem");
+    const store = requireStore(auth, request.body?.store);
+    response.json({ success: true, ...repository.redeemBatch(store, normalizeRedeemBatch(request.body), auth.account.accountId) });
   });
   app.use((_request, response) => response.status(404).json({ success: false, error: { message: "页面或接口不存在。" } }));
   app.use((error, _request, response, _next) => {

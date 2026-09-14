@@ -22,7 +22,8 @@ test("required fields reject whitespace and invalid type/time; code preserves ca
 
 test("coupons persist, are unique per store, ordered, paginated and atomically redeemed", (t) => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "store-repo-"));
-  let time = 1000;
+  const issuedAt = Date.parse(input.issuedAt);
+  let time = issuedAt + 1000;
   let repository = createRepository({ stateDir, now: () => time });
   t.after(() => { repository.close(); fs.rmSync(stateDir, { recursive: true, force: true }); });
   const value = normalizeCoupon(input);
@@ -37,8 +38,8 @@ test("coupons persist, are unique per store, ordered, paginated and atomically r
   assert.equal(repository.list("fuzzy", 1).items[0].code, "page-50");
   assert.equal(repository.list("fuzzy", 2).items.length, 3);
   assert.equal(repository.list("peanut", 1).total, 1);
-  time = 2000; const redeemed = repository.redeem(item.id, "fuzzy", "redeemer");
-  time = 3000;
+  time = issuedAt + 2000; const redeemed = repository.redeem(item.id, "fuzzy", "redeemer");
+  time = issuedAt + 3000;
   assert.throws(() => repository.redeem(item.id, "fuzzy", "other"), (error) => error.status === 409);
   assert.equal(repository.get(item.id).redeemedAt, redeemed.redeemedAt);
   repository.close(); repository = createRepository({ stateDir });
@@ -46,7 +47,7 @@ test("coupons persist, are unique per store, ordered, paginated and atomically r
   const db = new Database(path.join(stateDir, "coupons.db"), { readonly: true });
   const audit = db.prepare("SELECT * FROM coupons WHERE id = ?").get(item.id); db.close();
   assert.equal(audit.created_by_account_id, "actual-account");
-  assert.equal(audit.created_at, 1000); assert.equal(audit.redeemed_by_account_id, "redeemer"); assert.equal(audit.redeemed_at, 2000);
+  assert.equal(audit.created_at, issuedAt + 1000); assert.equal(audit.redeemed_by_account_id, "redeemer"); assert.equal(audit.redeemed_at, issuedAt + 2000);
 });
 
 test("scope validation fails closed and operation permissions never derive from role", () => {

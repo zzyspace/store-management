@@ -72,3 +72,37 @@ test("batch endpoint authorizes first, supports partial results and concurrent r
     assert.equal(reply.status, 200); assert.match(reply.headers.get("content-type"), /javascript/);
   }
 });
+
+test("batch redemption enforces permissions, time, concurrency, replay and independent operators", async (t) => {
+  const { randomUUID } = await import("node:crypto");
+  const f = await fixture(); t.after(() => f.close());
+  const earlier = Date.now() - 120000;
+  const issue = (code, issuedAt = earlier) => f.repository.issue("fuzzy", { type: "free_drink", code, reason: "赠送", operator: "发放姓名", issuedAt }, "fixture");
+  const first = issue("FUZZY-ZY-2001"), second = issue("FUZZY-ZY-2002"), third = issue("FUZZY-ZY-2003");
+  const data = { requestId: randomUUID(), store: "fuzzy", codes: [first.code, "FUZZY-ZY-9999"], operator: "核销姓名", redeemedAt: new Date(Date.now() - 60000).toISOString() };
+  const post = (cookie, body = data, headers) => f.request("/store/api/coupons/redeem-batch", cookie, { method: "POST", body: JSON.stringify(body), headers });
+  assert.equal((await post("")).status, 401);
+  assert.equal((await post(f.cookies.issuer)).status, 403);
+  assert.equal((await post(f.cookies.partner)).status, 403);
+  assert.equal((await post(f.cookies.manager, { ...data, store: "peanut" })).status, 403);
+  assert.equal((await post(f.cookies.admin, data, { Origin: "https://evil.test" })).status, 403);
+  for (const body of [{ ...data, operator: " " }, { ...data, redeemedAt: new Date(Date.now() + 60000).toISOString() }]) assert.equal((await post(f.cookies.admin, body)).status, 400);
+  assert.equal(f.repository.get(first.id).status, "unredeemed");
+  const [a, b] = await Promise.all([post(f.cookies.admin), post(f.cookies.admin)]);
+  assert.equal(a.status, 200); assert.equal(b.status, 200);
+  const result = await a.json(); assert.deepEqual(await b.json(), result);
+  assert.equal(result.redeemedCount, 1); assert.equal(result.failedCount, 1);
+  assert.equal(result.results[0].item.operator, "发放姓名"); assert.equal(result.results[0].item.redeemedOperator, "核销姓名");
+  assert.equal((await post(f.cookies.admin, { ...data, operator: "修改姓名" })).status, 409);
+  const competing = await Promise.all([post(f.cookies.manager, { ...data, requestId: randomUUID(), codes: [second.code] }), post(f.cookies.admin, { ...data, requestId: randomUUID(), codes: [second.code] })]);
+  assert.deepEqual((await Promise.all(competing.map(r => r.json()))).map(r => r.redeemedCount).sort(), [0, 1]);
+  const redeemerOnly = f.grant("redeemer", "manager", ["fuzzy"], ["coupon:view", "coupon:redeem"]);
+  assert.equal((await (await post(redeemerOnly, { ...data, requestId: randomUUID(), codes: [third.code] })).json()).redeemedCount, 1);
+  const legacy = issue("legacy-coupon-code");
+  const single = await f.request(`/store/api/coupons/${legacy.id}/redeem`, f.cookies.manager, { method: "POST", body: JSON.stringify({ store: "fuzzy" }) });
+  assert.equal(single.status, 200); assert.equal((await single.json()).item.redeemedOperator, "测试manager");
+  const future = issue("FUZZY-ZY-2999", Date.now() + 3600000);
+  assert.equal((await f.request(`/store/api/coupons/${future.id}/redeem`, f.cookies.manager, { method: "POST", body: JSON.stringify({ store: "fuzzy" }) })).status, 409);
+  f.grant("admin", "admin", "all", ["coupon:view"]);
+  assert.equal((await post(f.cookies.admin)).status, 401);
+});

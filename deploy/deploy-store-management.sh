@@ -134,8 +134,10 @@ for(const base of ['http://127.0.0.1:8791','https://comeover.cn']) {
     assert.equal(response.status,200);
     assert.equal(await response.text(),fs.readFileSync(file,'utf8'));
   }
-  const denied=await get('/store/api/coupons/batch',{method:'POST',headers:{'Content-Type':'application/json',Origin:base},body:'{}'});
-  assert.equal(denied.status,401);
+  for(const path of ['/store/api/coupons/batch','/store/api/coupons/redeem-batch']) {
+    const denied=await get(path,{method:'POST',headers:{'Content-Type':'application/json',Origin:base},body:'{}'});
+    assert.equal(denied.status,401);
+  }
 }
 console.log('Local and HTTPS health, served resources and access protection verified');
 NODE

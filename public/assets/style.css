@@ -184,6 +184,7 @@ textarea { resize: vertical; }
 h1 { margin: 0; font-size: clamp(30px, 4vw, 44px); line-height: 1.15; letter-spacing: -.035em; }
 h2 { margin: 0; font-size: 20px; }
 .hero p, .muted { color: var(--ink-soft); line-height: 1.6; }
+.hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .hero p { margin: 12px 0 0; }
 .panel { min-width: 0; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 24px; }
@@ -205,7 +206,6 @@ tbody tr:hover { background: var(--surface-hover); }
 .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; max-width: 240px; white-space: normal; overflow-wrap: anywhere; min-width: 100px; }
 .wrapping { min-width: 110px; max-width: 260px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
 .empty { text-align: center; color: var(--ink-soft); padding: 64px 16px; }
-.redeem-button { min-height: 32px; padding: 5px 12px; color: var(--brand); background: var(--brand-soft); border: none; }
 .pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 24px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-soft); }
 .pagination div { display: flex; gap: 8px; }
 .status { min-height: 0; margin: 0; color: var(--brand); line-height: 1.6; }
@@ -242,17 +242,17 @@ dt { color: var(--ink-soft); } dd { margin: 0; overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 .scan-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-#issueDialog { overflow: hidden; }
-#issueForm { display: flex; flex-direction: column; width: 100%; min-width: 0; max-height: calc(100dvh - 86px); overflow: hidden; }
-#issueForm > .modal-heading, #issueForm > .modal-actions, #issueForm > .status { flex-shrink: 0; }
+.batch-dialog { overflow: hidden; }
+.batch-form { display: flex; flex-direction: column; width: 100%; min-width: 0; max-height: calc(100dvh - 86px); overflow: hidden; }
+.batch-form > .modal-heading, .batch-form > .modal-actions, .batch-form > .status { flex-shrink: 0; }
 .issue-fields { width: 100%; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; padding: 0 4px; }
-#issueForm .form-grid > * { min-width: 0; }
-#issueForm input[type="datetime-local"] { min-inline-size: 0; max-inline-size: 100%; box-sizing: border-box; }
+.batch-form .form-grid > * { min-width: 0; }
+.batch-form input[type="datetime-local"] { min-inline-size: 0; max-inline-size: 100%; box-sizing: border-box; }
 /* iOS WebKit adds native date-control padding outside its 100% width (bug 301648).
    Keep spacing inside the native value rather than on the input itself. */
 @supports (-webkit-touch-callout: none) {
-  #issueForm input[type="datetime-local"] { -webkit-appearance: none; appearance: none; height: 46px; padding-inline: 0; line-height: normal; }
-  #issueForm input[type="datetime-local"]::-webkit-date-and-time-value { display: flex; align-items: center; min-width: 0; height: 22px; padding-inline: 12px; text-align: left; }
+  .batch-form input[type="datetime-local"] { -webkit-appearance: none; appearance: none; height: 46px; padding-inline: 0; line-height: normal; }
+  .batch-form input[type="datetime-local"]::-webkit-date-and-time-value { display: flex; align-items: center; min-width: 0; height: 22px; padding-inline: 12px; text-align: left; }
 }
 .scanned-codes { list-style: none; min-width: 0; padding: 0; margin: 0; }
 .scanned-codes:empty::before { content: "尚未扫描优惠券"; display: block; padding: 20px 0; color: var(--ink-soft); }
