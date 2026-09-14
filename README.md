@@ -67,7 +67,19 @@ npm run test:browser
 
 ## 发布与回滚
 
-生产发布步骤及顺序：
+日常更新使用服务器直接从 GitHub 获取指定提交：
+
+```sh
+# 完成测试、提交和推送后，明确选择本次已验收的完整提交 SHA。
+release_sha=$(git rev-parse HEAD)
+bash deploy/deploy-store-management.sh "$release_sha" root@139.196.140.215
+```
+
+脚本要求40位完整提交SHA，不接受 `main` 或其他移动分支名。本机只通过SSH发送部署脚本，服务器使用 `git fetch origin <SHA>` 下载代码，在独立候选目录检出指定提交并核对SHA；不会上传 Git bundle，也不会在正在运行的目录执行 `git pull`。依赖锁文件不变时复用上一版本依赖，否则使用 `npm ci --omit=dev` 安装。候选测试、SQLite在线备份及备份副本升级验证通过后，才原子切换 `current` 并重启门店服务；本机回环与正式HTTPS资源或鉴权检查失败时自动切回旧目录，保留数据库和备份。
+
+首次配置仓库读取权限时，在服务器生成专用密钥 `/root/.ssh/id_ed25519_github_store_management`，将对应 `.pub` 添加到 GitHub `zzyspace/store-management` 的 **Settings → Deploy keys**，不要启用 **Allow write access**。私钥只保留在服务器，权限0600；脚本显式指定此密钥及严格主机验证，不使用其他仓库的Deploy Key。服务器需要预先可信的GitHub主机记录、现有门店服务和SQLite数据目录。部署加锁，拒绝同时运行两次。
+
+首次安装整个门店服务的步骤及顺序：
 
 1. 备份网关账号数据库（使用 SQLite 在线备份或停服备份完整数据库），记录网关和各业务当前 SHA。新网关启动时事务重建 `account_access` 的应用 CHECK 约束，保留已有账号、权限、版本和审计，不添加任何 store 授权。
 2. 部署新网关并验证原后台登录、账号管理及 `/internal/authorization/store`；新授权必须由现有账号管理明确配置。
