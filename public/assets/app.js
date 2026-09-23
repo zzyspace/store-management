@@ -368,9 +368,15 @@ function renderTheme() {
 }
 $("themeToggle").addEventListener("click", () => {
   const root = document.documentElement; root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark"; root.style.colorScheme = root.dataset.theme;
-  try { localStorage.setItem("store-management-theme", root.dataset.theme); } catch {}
+  try { localStorage.setItem("comeover-admin-theme", root.dataset.theme); } catch {}
   renderTheme();
 }); renderTheme();
+window.addEventListener("storage", (event) => {
+  if (event.key !== "comeover-admin-theme" || !["light", "dark"].includes(event.newValue)) return;
+  document.documentElement.dataset.theme = event.newValue;
+  document.documentElement.style.colorScheme = event.newValue;
+  renderTheme();
+});
 
 function setCenters(open) {
   $("centerSwitcherMenu").hidden = !open; $("centerSwitcherBackdrop").hidden = !open;
