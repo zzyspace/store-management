@@ -314,7 +314,7 @@ function confirmScannedCode(value) {
     const item = parseCouponCode(value, draft.store);
     if (draft.codes.some((entry) => entry.code === item.code)) throw new Error("该券码已加入，请扫描下一张。");
     if (draft.codes.length >= MAX_BATCH_SIZE) throw new Error(`已达到${MAX_BATCH_SIZE}张上限，请结束扫码并${view.label}。`);
-    clearScanCollection();
+    clearScanCollection({ soft: true });
     state.candidate = item;
     $("scanCode").textContent = item.code;
     $("scanCouponType").className = `tag ${item.type}`; $("scanCouponType").textContent = state.session.types[item.type];
@@ -326,42 +326,70 @@ function confirmScannedCode(value) {
   } catch (error) { setScanUiState("ready"); status("scanStatus", error.message, true); scanner.resume(); }
 }
 
-let scanCollection = null;
-function clearScanCollection() {
-  if (!scanCollection) return;
-  scanCollection.animation?.cancel();
-  scanCollection.card.remove();
-  scanCollection = null;
+const scanCollections = new Set();
+function removeScanCollection(collection) {
+  collection.animations.forEach(animation => animation.cancel());
+  collection.card.remove(); collection.receipt?.remove();
+  scanCollections.delete(collection);
+}
+
+function clearScanCollection({ soft = false } = {}) {
+  for (const collection of scanCollections) {
+    if (!soft) { removeScanCollection(collection); continue; }
+    if (collection.retiring) continue;
+    collection.retiring = true;
+    // Freeze the presentation value before fading, not the old destination.
+    const style = getComputedStyle(collection.card);
+    const transform = style.transform, opacity = style.opacity;
+    collection.card.style.transform = transform;
+    collection.card.style.opacity = opacity;
+    collection.animations.forEach(animation => animation.cancel());
+    collection.receipt?.remove();
+    const fade = collection.card.animate([{ opacity }, { opacity: 0 }], { duration: 80, fill: "forwards" });
+    collection.animations = [fade];
+    fade.finished.then(() => removeScanCollection(collection), () => {});
+  }
 }
 
 function collectScanCard(snapshot) {
   if (!snapshot) return;
   const { card, rect } = snapshot;
-  card.removeAttribute("id");
-  card.removeAttribute("role");
-  card.removeAttribute("aria-modal");
-  card.removeAttribute("aria-labelledby");
-  card.removeAttribute("aria-describedby");
+  for (const attribute of ["id", "role", "aria-modal", "aria-labelledby", "aria-describedby"]) card.removeAttribute(attribute);
   card.querySelectorAll("[id]").forEach(node => { node.classList.add(`scan-collection-${node.id}`); node.removeAttribute("id"); });
   card.inert = true; card.setAttribute("aria-hidden", "true");
   card.classList.add("scan-collection");
   Object.assign(card.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
   $("scanDialog").append(card);
-  const target = $("scanConfirmedCount").closest(".scan-count").getBoundingClientRect();
+  const count = $("scanConfirmedCount").closest(".scan-count"), target = count.getBoundingClientRect();
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const transform = `translate(${target.left - rect.left}px, ${target.top - rect.top}px) scale(${target.width / rect.width}, ${target.height / rect.height})`;
+  const scale = Math.min(target.width / rect.width, target.height / rect.height);
+  const x = target.left + (target.width - rect.width * scale) / 2 - rect.left;
+  const y = target.top + (target.height - rect.height * scale) / 2 - rect.top;
+  const transform = `translate(${x}px, ${y}px) scale(${scale})`;
   const animation = card.animate(reduced ? [{ opacity: 1 }, { opacity: 0 }] : [
-    { transform: "translate(0, 0) scale(1, 1)", opacity: 1 },
-    { opacity: .85, offset: .75 },
+    { transform: "translate(0, 0) scale(1)", opacity: 1 },
+    { opacity: .6, offset: .7 },
     { transform, opacity: 0 },
-  ], { duration: reduced ? 100 : 240, easing: "cubic-bezier(0.32, 0.72, 0, 1)", fill: "forwards" });
-  const collection = scanCollection = { card, animation };
-  animation.finished.then(() => { if (scanCollection === collection) clearScanCollection(); }, () => {});
+  ], { duration: reduced ? 100 : 400, easing: "cubic-bezier(0.32, 0.72, 0, 1)", fill: "forwards" });
+  const collection = { card, animations: [animation] };
+  if (!reduced) {
+    // Fade the contents before they become miniature text; the shell stays proportional.
+    for (const content of card.children) collection.animations.push(content.animate(
+      [{ opacity: 1 }, { opacity: 0 }], { duration: 80, fill: "forwards" }
+    ));
+    const receipt = document.createElement("span");
+    receipt.className = "scan-count-receipt"; receipt.setAttribute("aria-hidden", "true");
+    count.append(receipt); collection.receipt = receipt;
+    collection.animations.push(receipt.animate([{ opacity: 0 }, { opacity: 1, offset: .35 }, { opacity: 0 }],
+      { duration: 120, delay: 280, fill: "both", easing: "ease-out" }));
+  }
+  scanCollections.add(collection);
+  animation.finished.then(() => removeScanCollection(collection), () => {});
 }
 
 function dismissScanConfirmation(accept, event) {
   if (!state.scanMode || !state.candidate) return;
-  clearScanCollection();
+  clearScanCollection({ soft: true });
   // Keep a visual copy in the dialog's top layer; release the real card and
   // resume decoding immediately so the animation never queues another scan.
   const snapshot = accept && event?.detail > 0 && typeof Element.prototype.animate === "function"

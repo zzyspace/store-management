@@ -28,7 +28,7 @@ export async function checkScanner({ page, f, checkSize }) {
       assert.ok(rect.x >= 0 && rect.x + rect.width <= width);
       const camera = await page.locator(".camera-stage").boundingBox();
       const confirm = await page.locator("#scanConfirm").boundingBox();
-      assert.ok(rect.y >= camera.y + camera.height, "confirmation card sits below the live camera");
+      assert.ok(rect.y >= camera.y && rect.y + rect.height <= camera.y + camera.height + 1, "confirmation overlays the camera without resizing it");
       assert.ok(camera.height >= 80 && confirm.y + confirm.height <= page.viewportSize().height);
       assert.equal(await page.locator("#scanClose").isDisabled(), true);
       assert.equal(await page.locator("#scanEnd").isVisible(), false);

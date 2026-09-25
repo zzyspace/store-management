@@ -263,7 +263,7 @@ dt { color: var(--ink-soft); } dd { margin: 0; overflow-wrap: anywhere; }
 .scan-purpose { color: #aab4c3; font-size: 12px; }
 .scan-close { min-width: 44px; min-height: 44px; padding: 0; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); color: #eef2f7; font-size: 25px; border-radius: 50%; }
 .scanner-context { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #aab4c3; font-size: 13px; margin: 0; padding: 0 2px; flex-shrink: 0; }
-.scan-count { display: flex; align-items: baseline; gap: 5px; font-variant-numeric: tabular-nums; }
+.scan-count { position: relative; display: flex; align-items: baseline; gap: 5px; font-variant-numeric: tabular-nums; }
 .scan-count strong { color: #f2f5f9; font-size: 18px; font-weight: 600; }
 .scan-count > span { font-size: 12px; color: #8896a8; }
 .camera-stage { position: relative; background: #080c12; border: 1px solid rgba(255,255,255,.06); border-radius: 19px; overflow: hidden; flex: 1; min-height: 80px; }
@@ -274,7 +274,7 @@ dt { color: var(--ink-soft); } dd { margin: 0; overflow-wrap: anywhere; }
 [data-scan-state="error"] .scan-phase::before { background: #ff9185; }
 .scan-guide { position: absolute; width: min(62vw, 25dvh, 240px); aspect-ratio: 1; top: 50%; left: 50%; transform: translate(-50%, -50%); border: 2px solid rgba(255,255,255,.7); border-radius: 17px; pointer-events: none; }
 [data-scan-state="confirm"] .scan-guide, [data-scan-state="error"] .scan-guide { display: none; }
-.scanner-footer { display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; width: min(100%, 600px); align-self: center; }
+.scanner-footer { position: absolute; z-index: 2; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 12px; width: min(calc(100% - 36px), 600px); }
 .scan-confirmation { width: 100%; max-height: min(360px, 55dvh); padding: 20px; border: 1px solid var(--line); border-radius: 21px; background: var(--surface-strong); color: var(--ink); box-shadow: 0 16px 48px rgba(0,0,0,.2); overflow: hidden; display: flex; flex-direction: column; }
 .scan-confirmation-body { min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .scan-confirmation h2 { font-size: 20px; margin: 0 0 16px; }
@@ -285,8 +285,8 @@ dt { color: var(--ink-soft); } dd { margin: 0; overflow-wrap: anywhere; }
 .scan-confirmation .modal-actions { display: flex; gap: 12px; margin-top: 18px; padding: 0; flex-shrink: 0; }
 .scan-confirmation .modal-actions button { min-height: 44px; }
 .scan-confirmation .modal-actions .primary { flex: 1; }
-.scanner-dialog .status:not(:empty) { margin: 0; background: rgba(255,255,255,.055); color: #cdd8e6; font-size: 13px; padding: 11px 14px; border-radius: 11px; }
-.scanner-dialog .status.error { color: #ffb2a8; background: rgba(255,115,100,.08); }
+.scanner-dialog .status:not(:empty) { margin: 0; background: rgba(16,23,34,.94); color: #cdd8e6; font-size: 13px; padding: 11px 14px; border-radius: 11px; }
+.scanner-dialog .status.error { color: #ffb2a8; background: rgba(48,24,27,.96); }
 #scanEnd, #scanRetry { width: 100%; min-height: 46px; border-radius: 12px; }
 #scanEnd { background: #007aff; color: white; border: 0; }
 #scanRetry { color: #f2f5f9; background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.18); }
@@ -456,3 +456,5 @@ dt { color: var(--ink-soft); } dd { margin: 0; overflow-wrap: anywhere; }
   #scanConfirm { transition: none; }
   #scanConfirm:active { transform: none; }
 }
+
+.scan-count-receipt { position: absolute; inset: -5px -7px; border-radius: 8px; background: rgba(255,255,255,.18); pointer-events: none; }
