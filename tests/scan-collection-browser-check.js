@@ -32,13 +32,13 @@ try {
     const geometry = await page.evaluate(() => {
       const card = document.querySelector(".scan-collection"), a = card.getAnimations()[0];
       const duration = a.effect.getTiming().duration;
-      a.currentTime = 400;
+      a.currentTime = 600;
       const r = card.getBoundingClientRect(), t = document.querySelector(".scan-count").getBoundingClientRect();
       a.currentTime = 120;
       for (const child of card.children) for (const animation of child.getAnimations()) animation.currentTime = 80;
       return { duration, contentsHidden: [...card.children].every(child => getComputedStyle(child).opacity === "0"), rect: [r.x, r.y, r.width, r.height], target: [t.x, t.y, t.width, t.height], inert: card.inert, ids: card.querySelectorAll("[id]").length };
     });
-    assert.equal(geometry.duration, 400);
+    assert.equal(geometry.duration, 600);
     assert.ok(geometry.contentsHidden);
     assert.ok(Math.abs(geometry.rect[0] + geometry.rect[2] / 2 - geometry.target[0] - geometry.target[2] / 2) < 1);
     assert.ok(Math.abs(geometry.rect[1] + geometry.rect[3] / 2 - geometry.target[1] - geometry.target[3] / 2) < 1);
@@ -47,10 +47,10 @@ try {
     await page.screenshot({ path: `outputs/scan-collection/mid-${width}.png` });
     const receipt = await page.locator(".scan-count-receipt").evaluate(node => {
       const animation = node.getAnimations()[0], timing = animation.effect.getTiming();
-      animation.currentTime = 310;
+      animation.currentTime = 700;
       return { duration: timing.duration, delay: timing.delay, opacity: Number(getComputedStyle(node).opacity) };
     });
-    assert.equal(receipt.duration, 120); assert.equal(receipt.delay, 280); assert.ok(receipt.opacity > .8);
+    assert.equal(receipt.duration, 600); assert.equal(receipt.delay, 450); assert.ok(receipt.opacity > .8);
     // A new code must be confirmable while the previous animation is still paused.
     await showQr(page, "FUZZY-ZY-9002"); await page.locator("#scanConfirmation").waitFor({ state: "visible" });
     assert.equal(await page.locator(".scan-collection").count(), 1, "interrupted card fades from its current position");
@@ -76,5 +76,5 @@ try {
   await page.waitForFunction(() => document.querySelectorAll(".scan-collection, .scan-count-receipt").length === 0);
   assert.equal(await page.locator("#scanConfirmedCount").innerText(), "1");
   assert.deepEqual(errors, []);
-  console.log("PASS: 400ms motion, uniform scale, stable camera, content fade, continuous scanning, soft interruption, keyboard, reduced motion and close cleanup");
+  console.log("PASS: 600ms motion and extended receipt glow, uniform scale, stable camera, content fade, continuous scanning, soft interruption, keyboard, reduced motion and close cleanup");
 } finally { await browser.close(); await f.close(); }

@@ -370,7 +370,7 @@ function collectScanCard(snapshot) {
     { transform: "translate(0, 0) scale(1)", opacity: 1 },
     { opacity: .6, offset: .7 },
     { transform, opacity: 0 },
-  ], { duration: reduced ? 100 : 400, easing: "cubic-bezier(0.32, 0.72, 0, 1)", fill: "forwards" });
+  ], { duration: reduced ? 100 : 600, easing: "cubic-bezier(0.32, 0.72, 0, 1)", fill: "forwards" });
   const collection = { card, animations: [animation] };
   if (!reduced) {
     // Fade the contents before they become miniature text; the shell stays proportional.
@@ -380,11 +380,12 @@ function collectScanCard(snapshot) {
     const receipt = document.createElement("span");
     receipt.className = "scan-count-receipt"; receipt.setAttribute("aria-hidden", "true");
     count.append(receipt); collection.receipt = receipt;
-    collection.animations.push(receipt.animate([{ opacity: 0 }, { opacity: 1, offset: .35 }, { opacity: 0 }],
-      { duration: 120, delay: 280, fill: "both", easing: "ease-out" }));
+    collection.animations.push(receipt.animate([{ opacity: 0 }, { opacity: 1, offset: .2 }, { opacity: 1, offset: .55 }, { opacity: 0 }],
+      { duration: 600, delay: 450, fill: "both", easing: "linear" }));
   }
   scanCollections.add(collection);
-  animation.finished.then(() => removeScanCollection(collection), () => {});
+  // Let the receipt finish after the card arrives instead of clipping its glow.
+  Promise.all(collection.animations.map(animation => animation.finished)).then(() => removeScanCollection(collection), () => {});
 }
 
 function dismissScanConfirmation(accept, event) {
