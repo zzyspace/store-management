@@ -1,0 +1,50 @@
+import assert from "node:assert/strict";
+import { fixture } from "./integration-fixture.js";
+const { chromium } = await import(process.env.STORE_PLAYWRIGHT_MODULE || "playwright");
+const f = await fixture();
+const browser = await chromium.launch({ headless: true, ...(process.env.STORE_CHROME_PATH ? { executablePath: process.env.STORE_CHROME_PATH } : {}) });
+try {
+  const context = await browser.newContext();
+  const page = await context.newPage(), errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  const login = async cookie => { await context.clearCookies(); await context.addCookies([{ name: "admin_session", value: cookie.split("=")[1], url: f.base }]); };
+  const seed = { type: "free_drink", reason: "删除验收", operator: "测试", issuedAt: Date.now() - 10000 };
+  for (let i = 0; i < 51; i++) f.repository.issue("fuzzy", { ...seed, code: `FUZZY-ZY-${i}` }, "fixture");
+  await login(f.cookies.admin); await page.goto(f.base + "/store");
+  await page.locator(".coupon-row").first().click();
+  assert.equal(await page.locator("#deleteCouponCode").isVisible(), false);
+  await login(f.cookies.owner); await page.goto(f.base + "/auth/accounts?account=manager");
+  const access = page.locator('form[data-app="store"]');
+  await access.locator('[name="permissions"][value="coupon:delete"]').check();
+  await access.getByRole("button", { name: "保存门店管理权限", exact: true }).click();
+  await page.waitForLoadState("load");
+  assert.ok(f.accounts.getAccess("manager", "store").permissions.includes("coupon:delete"));
+  const cookie = `admin_session=${f.sessions.login("manager", "local-fixture-password").token}`;
+  await login(cookie); await page.goto(f.base + "/store");
+  await page.locator(".coupon-row").first().click();
+  for (const width of [1440, 390, 320]) for (const theme of ["light", "dark"]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+    const bounds = await page.locator("#deleteCouponCode").boundingBox();
+    assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width && bounds.y + bounds.height <= 844);
+  }
+  page.once("dialog", dialog => dialog.dismiss()); await page.locator("#deleteCouponCode").click();
+  assert.equal(f.repository.list("fuzzy", 1).total, 51);
+  await page.route("**/store/api/coupons/*", route => route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ success: false, error: { message: "当前账号无权执行此操作。" } }) }));
+  page.once("dialog", dialog => dialog.accept()); await page.locator("#deleteCouponCode").click();
+  await page.waitForFunction(() => document.getElementById("detailStatus").textContent.includes("无权"));
+  assert.equal(await page.locator("#deleteCouponCode").isEnabled(), true);
+  await page.unroute("**/store/api/coupons/*");
+  await page.keyboard.press("Escape"); await page.locator("#nextPage").click();
+  await page.waitForFunction(() => document.querySelectorAll(".coupon-row").length === 1);
+  await page.locator(".coupon-row").click();
+  page.once("dialog", dialog => { assert.match(dialog.message(), /FUZZY-ZY-0/); return dialog.accept(); });
+  await page.locator("#deleteCouponCode").click();
+  await page.waitForFunction(() => document.getElementById("pageStatus").textContent.includes("已删除"));
+  assert.equal(await page.locator("#couponDetailDialog").isVisible(), false);
+  assert.equal(await page.locator(".coupon-row").count(), 50);
+  assert.equal(await page.locator("#pageInfo").innerText(), "第 1 / 1 页");
+  assert.equal(f.repository.get(1), null);
+  assert.deepEqual(errors, []);
+  console.log("PASS: account permission save, hidden button, desktop/mobile themes, cancel, denial, deletion, final-page fallback");
+} finally { await browser.close(); await f.close(); }

@@ -445,3 +445,5 @@ dt { color: var(--ink-soft); } dd { margin: 0; overflow-wrap: anywhere; }
   #redeemForm > .modal-actions { padding: 15px 20px max(18px, env(safe-area-inset-bottom)); }
   #redeemForm > .modal-actions .primary { flex: 1; min-width: 0; }
 }
+
+#deleteCouponCode { width: 100%; min-height: 44px; color: var(--danger); border-color: var(--danger); margin-bottom: 8px; }

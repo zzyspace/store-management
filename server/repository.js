@@ -74,7 +74,7 @@ export function createRepository({ stateDir, now = Date.now }) {
   const fd = fs.openSync(filename, "a", 0o600); fs.closeSync(fd); fs.chmodSync(filename, 0o600);
   const db = new Database(filename);
   db.pragma("journal_mode = WAL"); db.pragma("busy_timeout = 5000");
-  db.exec(`CREATE TABLE IF NOT EXISTS coupons (
+  const couponSchema = `CREATE TABLE IF NOT EXISTS coupons (
     id INTEGER PRIMARY KEY,
     store TEXT NOT NULL CHECK(store IN ('fuzzy','fuzzy_qz','peanut')),
     type TEXT NOT NULL CHECK(type IN ('cash_100','free_drink')),
@@ -86,10 +86,14 @@ export function createRepository({ stateDir, now = Date.now }) {
     created_by_account_id TEXT NOT NULL,
     redeemed_at INTEGER,
     redeemed_by_account_id TEXT,
-    UNIQUE(store, code),
+    redeemed_operator TEXT,
+    deleted_at INTEGER,
+    deleted_by_account_id TEXT,
     CHECK((redeemed_at IS NULL AND redeemed_by_account_id IS NULL) OR
           (redeemed_at IS NOT NULL AND redeemed_by_account_id IS NOT NULL))
-  );
+  );`;
+  db.exec(couponSchema);
+  db.exec(`
   CREATE INDEX IF NOT EXISTS coupons_store_issued ON coupons(store, issued_at DESC, id DESC);
   CREATE TABLE IF NOT EXISTS coupon_issue_batches (
     account_id TEXT NOT NULL,
@@ -112,8 +116,22 @@ export function createRepository({ stateDir, now = Date.now }) {
     if (!db.pragma("table_info(coupons)").some((column) => column.name === "redeemed_operator")) {
       db.exec("ALTER TABLE coupons ADD COLUMN redeemed_operator TEXT");
     }
+    if (!db.pragma("table_info(coupons)").some((column) => column.name === "deleted_at")) {
+      db.exec("ALTER TABLE coupons ADD COLUMN deleted_at INTEGER; ALTER TABLE coupons ADD COLUMN deleted_by_account_id TEXT");
+    }
+    // Legacy UNIQUE(store, code) also reserved deleted codes. Only live rows
+    // should reserve a code; keep historical rows and IDs for audit and stale clients.
+    if (db.pragma("index_list(coupons)").some((index) => index.origin === "u")) {
+      db.exec(couponSchema.replace("IF NOT EXISTS coupons", "coupons_next"));
+      const columns = "id,store,type,code,reason,operator,issued_at,created_at,created_by_account_id,redeemed_at,redeemed_by_account_id,redeemed_operator,deleted_at,deleted_by_account_id";
+      db.exec(`INSERT INTO coupons_next (${columns}) SELECT ${columns} FROM coupons;
+        DROP TABLE coupons;
+        ALTER TABLE coupons_next RENAME TO coupons;`);
+    }
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS coupons_live_store_code ON coupons(store, code) WHERE deleted_at IS NULL;
+      CREATE INDEX IF NOT EXISTS coupons_store_issued ON coupons(store, issued_at DESC, id DESC);`);
   }).immediate();
-  const find = db.prepare("SELECT * FROM coupons WHERE id = ?");
+  const find = db.prepare("SELECT * FROM coupons WHERE id = ? AND deleted_at IS NULL");
   const insert = db.prepare(`INSERT INTO coupons (store,type,code,reason,operator,issued_at,created_at,created_by_account_id)
     VALUES (?,?,?,?,?,?,?,?)`);
   function issue(store, input, accountId) {
@@ -182,7 +200,7 @@ export function createRepository({ stateDir, now = Date.now }) {
       if (seen.has(parsed.code)) return { index, code: parsed.code, success: false, error: { message: "本批次中券码重复。", field: "code" } };
       seen.add(parsed.code);
       try {
-        const row = db.prepare("SELECT * FROM coupons WHERE store = ? AND code = ?").get(store, parsed.code);
+        const row = db.prepare("SELECT * FROM coupons WHERE store = ? AND code = ? AND deleted_at IS NULL").get(store, parsed.code);
         return { index, code: parsed.code, success: true, item: redeemOne(row, store, accountId, input.operator, input.redeemedAt) };
       } catch (error) {
         if (!(error instanceof OperationError)) throw error;
@@ -198,11 +216,15 @@ export function createRepository({ stateDir, now = Date.now }) {
   return {
     close: () => db.close(),
     list(store, page) {
-      const total = db.prepare("SELECT count(*) AS total FROM coupons WHERE store = ?").get(store).total;
-      const items = db.prepare("SELECT * FROM coupons WHERE store = ? ORDER BY issued_at DESC, id DESC LIMIT 50 OFFSET ?").all(store, (page - 1) * 50).map(serialize);
+      const total = db.prepare("SELECT count(*) AS total FROM coupons WHERE store = ? AND deleted_at IS NULL").get(store).total;
+      const items = db.prepare("SELECT * FROM coupons WHERE store = ? AND deleted_at IS NULL ORDER BY issued_at DESC, id DESC LIMIT 50 OFFSET ?").all(store, (page - 1) * 50).map(serialize);
       return { items, total, page, pageSize: 50 };
     },
     get(id) { const row = find.get(id); return row ? serialize(row) : null; },
+    remove(id, store, accountId) {
+      const result = db.prepare("UPDATE coupons SET deleted_at = ?, deleted_by_account_id = ? WHERE id = ? AND store = ? AND deleted_at IS NULL").run(now(), accountId, id, store);
+      if (!result.changes) throw new OperationError(404, "未找到该门店的优惠券，可能已被删除。");
+    },
     issue,
     issueBatch: (store, input, accountId) => issueBatch.immediate(store, input, accountId),
     redeem: (id, store, accountId, operator = accountId) => redeem.immediate(id, store, accountId, operator),

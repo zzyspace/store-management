@@ -106,3 +106,56 @@ test("batch redemption enforces permissions, time, concurrency, replay and indep
   f.grant("admin", "admin", "all", ["coupon:view"]);
   assert.equal((await post(f.cookies.admin)).status, 401);
 });
+
+test("coupon deletion requires explicit permission and store scope and preserves history", async (t) => {
+  const f = await fixture(); t.after(() => f.close());
+  const { randomUUID } = await import("node:crypto");
+  const batch = { requestId: randomUUID(), codes: ["FUZZY-ZY-9001", "FUZZY-ZY-9002"], reason: "删除测试", operator: "测试", issuedAt: Date.now() - 10000 };
+  const original = f.repository.issueBatch("fuzzy", batch, "fixture");
+  const [first, second] = original.results.map(result => result.item);
+  const remove = (cookie, id = first.id, store = "fuzzy", headers) => f.request(`/store/api/coupons/${id}`, cookie, { method: "DELETE", body: JSON.stringify({ store }), headers });
+  assert.equal((await remove("")).status, 401);
+  assert.equal((await remove(f.cookies.admin)).status, 403);
+  const deleter = f.grant("deleter", "manager", ["fuzzy"], ["coupon:view", "coupon:delete"]);
+  assert.equal((await remove(deleter, first.id, "peanut")).status, 403);
+  const all = f.grant("all-delete", "admin", "all", ["coupon:view", "coupon:delete"]);
+  assert.equal((await remove(all, first.id, "peanut")).status, 404);
+  assert.equal((await remove(deleter, first.id, "fuzzy", { Origin: "https://evil.test" })).status, 403);
+  assert.equal((await remove(deleter, "invalid")).status, 404);
+  const results = await Promise.all([remove(deleter), remove(deleter)]);
+  assert.deepEqual(results.map(r => r.status).sort(), [200, 404]);
+  assert.equal(f.repository.get(first.id), null);
+  assert.deepEqual(f.repository.list("fuzzy", 1).items, [second]);
+  assert.throws(() => f.repository.redeem(first.id, "fuzzy", "fixture"), e => e.status === 404);
+  assert.deepEqual(f.repository.issueBatch("fuzzy", batch, "fixture"), original);
+  assert.equal(f.repository.get(first.id), null, "batch replay must not restore a deleted coupon");
+  f.repository.redeem(second.id, "fuzzy", "fixture");
+  assert.equal((await remove(deleter, second.id)).status, 200);
+  assert.equal(f.repository.list("fuzzy", 1).total, 0);
+  const { default: Database } = await import("better-sqlite3");
+  const db = new Database(`${f.stateDir}/coupons.db`, { readonly: true });
+  try {
+    const row = db.prepare("SELECT deleted_at, deleted_by_account_id FROM coupons WHERE id = ?").get(first.id);
+    assert.equal(row.deleted_by_account_id, "deleter"); assert.ok(row.deleted_at > 0);
+    assert.equal(db.pragma("integrity_check", { simple: true }), "ok");
+  } finally { db.close(); }
+  // Reuse the physical code in a new lifecycle, with a new ID and clean state.
+  const reactivated = f.repository.issueBatch("fuzzy", { ...batch, requestId: randomUUID() }, "fixture");
+  assert.equal(reactivated.issuedCount, 2);
+  const fresh = reactivated.results[0].item;
+  assert.notEqual(fresh.id, first.id);
+  assert.equal(fresh.status, "unredeemed");
+  assert.equal(fresh.redeemedAt, null);
+  assert.equal((await remove(deleter, first.id)).status, 404);
+  assert.deepEqual(f.repository.issueBatch("fuzzy", batch, "fixture"), original);
+  assert.equal(f.repository.get(fresh.id).status, "unredeemed");
+  const redeemInput = { requestId: randomUUID(), codes: [fresh.code], operator: "重新核销", redeemedAt: Date.now() };
+  assert.equal(f.repository.redeemBatch("fuzzy", redeemInput, "fixture").redeemedCount, 1);
+  assert.equal((await remove(deleter, fresh.id)).status, 200);
+  const again = f.repository.issue("fuzzy", { ...batch, type: "free_drink", code: fresh.code }, "fixture");
+  f.repository.redeemBatch("fuzzy", redeemInput, "fixture");
+  assert.equal(f.repository.get(again.id).status, "unredeemed", "old redemption replay must not redeem the new lifecycle");
+  assert.equal(f.repository.redeem(again.id, "fuzzy", "fixture").status, "redeemed");
+  f.grant("deleter", "manager", ["fuzzy"], ["coupon:view"]);
+  assert.equal((await remove(deleter)).status, 401);
+});

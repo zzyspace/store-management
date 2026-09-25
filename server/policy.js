@@ -1,6 +1,6 @@
 export const STORES = Object.freeze({ fuzzy: "Fuzzy", fuzzy_qz: "Fuzzy泉州店", peanut: "Peanut" });
 export const TYPES = Object.freeze({ cash_100: "100元代金券", free_drink: "赠饮券" });
-export const PERMISSIONS = Object.freeze(["coupon:view", "coupon:issue", "coupon:redeem"]);
+export const PERMISSIONS = Object.freeze(["coupon:view", "coupon:issue", "coupon:redeem", "coupon:delete"]);
 
 export function validateAuthorization(data) {
   const access = data.access;

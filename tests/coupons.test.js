@@ -63,3 +63,28 @@ test("scope validation fails closed and operation permissions never derive from 
   for (const stores of [[], ["invalid"], null]) assert.throws(() => validateAuthorization(grant("manager", stores)));
   assert.throws(() => validateAuthorization(grant("manager", ["fuzzy"], ["coupon:issue"])));
 });
+
+test("legacy unique-code migration preserves records and permits deleted-code reuse after restart", (t) => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "store-delete-migration-"));
+  let repository = createRepository({ stateDir });
+  t.after(() => { repository.close(); fs.rmSync(stateDir, { recursive: true, force: true }); });
+  const original = repository.issue("fuzzy", normalizeCoupon(input), "creator");
+  repository.redeem(original.id, "fuzzy", "redeemer");
+  repository.close();
+  const db = new Database(path.join(stateDir, "coupons.db"));
+  const schema = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='coupons'").get().sql;
+  db.exec(schema.replace('CREATE TABLE coupons', 'CREATE TABLE legacy_coupons').replace('    CHECK((redeemed_at', '    UNIQUE(store, code),\n    CHECK((redeemed_at'));
+  db.exec("INSERT INTO legacy_coupons SELECT * FROM coupons; DROP TABLE coupons; ALTER TABLE legacy_coupons RENAME TO coupons;");
+  db.close();
+  repository = createRepository({ stateDir });
+  assert.equal(repository.get(original.id).status, "redeemed");
+  assert.throws(() => repository.issue("fuzzy", normalizeCoupon(input), "creator"), e => e.status === 409);
+  repository.remove(original.id, "fuzzy", "deleter");
+  const fresh = repository.issue("fuzzy", normalizeCoupon(input), "creator");
+  assert.notEqual(fresh.id, original.id);
+  assert.equal(fresh.status, "unredeemed");
+  repository.close(); repository = createRepository({ stateDir });
+  assert.equal(repository.get(original.id), null);
+  assert.equal(repository.get(fresh.id).status, "unredeemed");
+  assert.equal(repository.list("fuzzy", 1).total, 1);
+});

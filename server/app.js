@@ -48,6 +48,15 @@ export function createApp({ repository, env = process.env }) {
     const input = normalizeCoupon(request.body);
     response.status(201).json({ success: true, item: repository.issue(store, input, auth.account.accountId) });
   });
+  app.delete("/store/api/coupons/:id", (request, response) => {
+    const auth = response.locals.gatewayAuthorization;
+    requirePermission(auth, "coupon:delete");
+    const store = requireStore(auth, request.body?.store);
+    const id = Number(request.params.id);
+    if (!Number.isSafeInteger(id) || id <= 0) throw new OperationError(404, "未找到该门店的优惠券。");
+    repository.remove(id, store, auth.account.accountId);
+    response.json({ success: true });
+  });
   app.post("/store/api/coupons/:id/redeem", (request, response) => {
     const auth = response.locals.gatewayAuthorization;
     requirePermission(auth, "coupon:redeem");

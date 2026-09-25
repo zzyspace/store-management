@@ -74,6 +74,7 @@ function openCouponDetail(item, trigger) {
   $("detailRedeemOperator").textContent = item.redeemedAt ? item.redeemedOperator || "—" : "暂无核销记录";
   $("detailRedeemedAt").textContent = item.redeemedAt ? dateText(item.redeemedAt) : "";
   $("detailRedeemedAt").dateTime = item.redeemedAt || ""; $("detailRedeemedAt").hidden = !item.redeemedAt;
+  $("deleteCouponCode").hidden = !can("coupon:delete"); $("deleteCouponCode").disabled = false;
   $("copyCouponCode").disabled = false; status("detailStatus"); $("couponDetailDialog").showModal();
   $("couponDetailDialog").querySelector(".coupon-detail-content").scrollTop = 0;
   $("couponDetailDialog").querySelector("[data-close]").focus({ preventScroll: true });
@@ -102,11 +103,27 @@ $("couponDetailDialog").addEventListener("click", (event) => {
 });
 $("couponDetailDialog").addEventListener("keydown", (event) => {
   if (event.key !== "Tab") return;
-  const buttons = [...event.currentTarget.querySelectorAll("button:not(:disabled)")];
+  const buttons = [...event.currentTarget.querySelectorAll("button:not(:disabled):not([hidden])")];
   const first = buttons[0], last = buttons.at(-1);
   if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 });
+$("deleteCouponCode").addEventListener("click", async () => {
+  const item = state.detailItem;
+  if (!item || !can("coupon:delete") || $("deleteCouponCode").disabled) return;
+  if (!window.confirm(`确认删除 ${storeLabel(item.store)} 的券码 ${item.code}？\n删除后将清除当前激活和核销状态，可重新激活后再核销。`)) return;
+  $("deleteCouponCode").disabled = true;
+  status("detailStatus", "正在删除…");
+  try {
+    await api(`/store/api/coupons/${item.id}`, { method: "DELETE", body: JSON.stringify({ store: item.store }) });
+    if (state.detailItem !== item) return;
+    if (state.items.length === 1 && state.page > 1) state.page--;
+    if (await loadList()) status("pageStatus", `券码 ${item.code} 已删除。`);
+  } catch (error) {
+    if (state.detailItem === item) status("detailStatus", error.message, true);
+  } finally { if (state.detailItem === item) $("deleteCouponCode").disabled = false; }
+});
+
 $("copyCouponCode").addEventListener("click", async () => {
   const item = state.detailItem;
   if (!item || !can("coupon:view")) return;
