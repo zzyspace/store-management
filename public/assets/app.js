@@ -301,6 +301,7 @@ function openBatchScanner(mode) {
 }
 
 const scanner = new CouponScanner({ video: $("scanVideo"), onCode: confirmScannedCode, onError(message) {
+  clearScanCollection();
   state.candidate = null; $("scanConfirmation").hidden = true; $("scanEnd").disabled = false;
   setScanUiState("error");
   status("scanStatus", message, true); $("scanRetry").hidden = false; $("scanRetry").disabled = false;
@@ -313,6 +314,7 @@ function confirmScannedCode(value) {
     const item = parseCouponCode(value, draft.store);
     if (draft.codes.some((entry) => entry.code === item.code)) throw new Error("该券码已加入，请扫描下一张。");
     if (draft.codes.length >= MAX_BATCH_SIZE) throw new Error(`已达到${MAX_BATCH_SIZE}张上限，请结束扫码并${view.label}。`);
+    clearScanCollection();
     state.candidate = item;
     $("scanCode").textContent = item.code;
     $("scanCouponType").className = `tag ${item.type}`; $("scanCouponType").textContent = state.session.types[item.type];
@@ -324,8 +326,46 @@ function confirmScannedCode(value) {
   } catch (error) { setScanUiState("ready"); status("scanStatus", error.message, true); scanner.resume(); }
 }
 
-function dismissScanConfirmation(accept) {
-  if (!state.scanMode) return;
+let scanCollection = null;
+function clearScanCollection() {
+  if (!scanCollection) return;
+  scanCollection.animation?.cancel();
+  scanCollection.card.remove();
+  scanCollection = null;
+}
+
+function collectScanCard(snapshot) {
+  if (!snapshot) return;
+  const { card, rect } = snapshot;
+  card.removeAttribute("id");
+  card.removeAttribute("role");
+  card.removeAttribute("aria-modal");
+  card.removeAttribute("aria-labelledby");
+  card.removeAttribute("aria-describedby");
+  card.querySelectorAll("[id]").forEach(node => { node.classList.add(`scan-collection-${node.id}`); node.removeAttribute("id"); });
+  card.inert = true; card.setAttribute("aria-hidden", "true");
+  card.classList.add("scan-collection");
+  Object.assign(card.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+  $("scanDialog").append(card);
+  const target = $("scanConfirmedCount").closest(".scan-count").getBoundingClientRect();
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const transform = `translate(${target.left - rect.left}px, ${target.top - rect.top}px) scale(${target.width / rect.width}, ${target.height / rect.height})`;
+  const animation = card.animate(reduced ? [{ opacity: 1 }, { opacity: 0 }] : [
+    { transform: "translate(0, 0) scale(1, 1)", opacity: 1 },
+    { opacity: .85, offset: .75 },
+    { transform, opacity: 0 },
+  ], { duration: reduced ? 100 : 240, easing: "cubic-bezier(0.32, 0.72, 0, 1)", fill: "forwards" });
+  const collection = scanCollection = { card, animation };
+  animation.finished.then(() => { if (scanCollection === collection) clearScanCollection(); }, () => {});
+}
+
+function dismissScanConfirmation(accept, event) {
+  if (!state.scanMode || !state.candidate) return;
+  clearScanCollection();
+  // Keep a visual copy in the dialog's top layer; release the real card and
+  // resume decoding immediately so the animation never queues another scan.
+  const snapshot = accept && event?.detail > 0 && typeof Element.prototype.animate === "function"
+    ? { card: $("scanConfirmation").cloneNode(true), rect: $("scanConfirmation").getBoundingClientRect() } : null;
   const mode = state.scanMode, draft = drafts[mode], view = batchViews[mode];
   if (accept && state.candidate) draft.codes.push(state.candidate);
   state.candidate = null; $("scanConfirmation").hidden = true; $("scanEnd").disabled = false;
@@ -333,6 +373,7 @@ function dismissScanConfirmation(accept) {
   renderScannedCodes(mode); syncBatchControls(mode); scanner.resume();
   status("scanStatus", draft.codes.length >= MAX_BATCH_SIZE ? `已达到50张上限，请结束扫码并${view.label}。` : "请将下一张二维码对准相机。继续扫描同一码前请先将其移出画面。");
   $("scanEnd").focus();
+  collectScanCard(snapshot);
 }
 
 async function startScanning() {
@@ -350,6 +391,7 @@ function setScanUiState(value) {
 }
 
 function finishScanning() {
+  clearScanCollection();
   const mode = state.scanMode;
   scanner.stop(); state.candidate = null; state.scanMode = null;
   $("scanConfirmation").hidden = true; $("scanEnd").disabled = false;
@@ -359,7 +401,7 @@ function finishScanning() {
 }
 
 $("scanRetry").addEventListener("click", startScanning);
-$("scanConfirm").addEventListener("click", () => dismissScanConfirmation(true));
+$("scanConfirm").addEventListener("click", (event) => dismissScanConfirmation(true, event));
 $("scanCancel").addEventListener("click", () => dismissScanConfirmation(false));
 $("scanEnd").addEventListener("click", finishScanning);
 $("scanClose").addEventListener("click", finishScanning);
@@ -369,6 +411,7 @@ $("scanConfirmation").addEventListener("keydown", (event) => {
   if (event.key !== "Tab") return;
   event.preventDefault(); (document.activeElement === $("scanConfirm") ? $("scanCancel") : $("scanConfirm")).focus();
 });
+window.addEventListener("resize", clearScanCollection);
 window.addEventListener("pagehide", finishScanning);
 document.addEventListener("visibilitychange", () => { if (document.hidden && $("scanDialog").open) scanner.fail("相机已暂停，已确认券码仍保留。返回后请点击“重试相机”。"); });
 

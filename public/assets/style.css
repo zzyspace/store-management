@@ -279,8 +279,8 @@ dt { color: var(--ink-soft); } dd { margin: 0; overflow-wrap: anywhere; }
 .scan-confirmation-body { min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .scan-confirmation h2 { font-size: 20px; margin: 0 0 16px; }
 .scan-coupon-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-#scanCouponStore { font-size: 13px; color: var(--ink-soft); }
-#scanCode { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 18px; font-weight: 600; line-height: 1.5; letter-spacing: -.025em; overflow-wrap: anywhere; margin: 12px 0 9px; }
+#scanCouponStore, .scan-collection-scanCouponStore { font-size: 13px; color: var(--ink-soft); }
+#scanCode, .scan-collection-scanCode { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 18px; font-weight: 600; line-height: 1.5; letter-spacing: -.025em; overflow-wrap: anywhere; margin: 12px 0 9px; }
 .scan-confirm-hint { font-size: 12px; color: var(--ink-soft); margin: 0; line-height: 1.65; }
 .scan-confirmation .modal-actions { display: flex; gap: 12px; margin-top: 18px; padding: 0; flex-shrink: 0; }
 .scan-confirmation .modal-actions button { min-height: 44px; }
@@ -291,7 +291,7 @@ dt { color: var(--ink-soft); } dd { margin: 0; overflow-wrap: anywhere; }
 #scanEnd { background: #007aff; color: white; border: 0; }
 #scanRetry { color: #f2f5f9; background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.18); }
 @media (min-width: 1000px) { .scanner-dialog { padding-inline: max(24px, calc((100vw - 1100px) / 2)); } }
-@media (max-width: 400px) { .scan-confirmation { padding: 17px; } #scanCode { font-size: 16px; } .scan-purpose { font-size: 11px; } .scanner-heading > div { gap: 8px; } }
+@media (max-width: 400px) { .scan-confirmation { padding: 17px; } #scanCode, .scan-collection-scanCode { font-size: 16px; } .scan-purpose { font-size: 11px; } .scanner-heading > div { gap: 8px; } }
 
 /* Approved list B: compact summary, with complete records in a read-only detail panel. */
 .coupon-panel { background: var(--surface-strong); }
@@ -447,3 +447,12 @@ dt { color: var(--ink-soft); } dd { margin: 0; overflow-wrap: anywhere; }
 }
 
 #deleteCouponCode { width: 100%; min-height: 44px; color: var(--danger); border-color: var(--danger); margin-bottom: 8px; }
+
+/* A non-interactive visual copy collects into the confirmed count. */
+.scan-collection { position: fixed; z-index: 3; margin: 0; max-height: none; pointer-events: none; transform-origin: top left; will-change: transform, opacity; }
+#scanConfirm { transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+#scanConfirm:active { transform: scale(.97); }
+@media (prefers-reduced-motion: reduce) {
+  #scanConfirm { transition: none; }
+  #scanConfirm:active { transform: none; }
+}
