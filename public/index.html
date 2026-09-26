@@ -41,7 +41,10 @@
 
 
 <main>
-<header class="hero"><div><h1>优惠券管理</h1><p id="storeDescription">查看优惠券激活与核销记录。</p></div><div class="hero-actions"><button class="primary" id="issueOpen" hidden>＋ 激活优惠券</button><button class="primary" id="redeemOpen" hidden>核销优惠券</button></div></header>
+<header class="hero"><div><h1>优惠券管理</h1><p id="storeDescription">查看优惠券激活与核销记录。</p></div><div class="hero-actions">
+<button class="primary coupon-action coupon-action-issue" id="issueOpen" hidden><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 18H4a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M7 7v2m0 4v2"/><path d="M18 13v8m-4-4h8" stroke-width="2.6"/></svg><span>激活优惠券</span></button>
+<button class="primary coupon-action" id="redeemOpen" hidden><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 18H4a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M7 7v2m0 4v2"/><path d="m13 17 3 3 6-7" stroke-width="2.6"/></svg><span>核销优惠券</span></button>
+</div></header>
 <p class="status" id="pageStatus" role="status" aria-live="polite"></p>
 <section class="panel coupon-panel" aria-label="已激活优惠券">
 <div class="panel-heading"><h2>已激活优惠券</h2><span class="coupon-total" id="totalPill">共 0 张</span></div>

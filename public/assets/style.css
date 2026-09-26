@@ -188,6 +188,10 @@ h1 { margin: 0; font-size: clamp(30px, 4vw, 44px); line-height: 1.15; letter-spa
 h2 { margin: 0; font-size: 20px; }
 .hero p, .muted { color: var(--ink-soft); line-height: 1.6; }
 .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.coupon-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
+.coupon-action svg { width: 24px; height: 24px; flex: none; }
+.coupon-action-issue { background: #198754; }
+.coupon-action-issue:focus-visible { outline-color: rgba(25, 135, 84, .45); }
 .hero p { margin: 12px 0 0; }
 .panel { min-width: 0; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 24px; }
