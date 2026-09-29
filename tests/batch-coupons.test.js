@@ -6,7 +6,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 import { parseCouponCode } from "../public/assets/coupon-code.js";
-import { createRepository, normalizeBatch } from "../server/repository.js";
+import { createRepository, normalizeBatch, normalizeRedeemBatch } from "../server/repository.js";
 
 const batch = (codes, extra = {}) => normalizeBatch({ requestId: randomUUID(), codes, reason: "赠送", operator: "操作人", issuedAt: "2026-09-14T12:30+08:00", ...extra });
 function setup(t) {
@@ -27,6 +27,34 @@ test("shared parser recognizes all stores and types, preserving numeric suffix a
   assert.throws(() => parseCouponCode("UNKNOWN-ZY-1"), /门店代码/);
   assert.throws(() => parseCouponCode("FUZZY-200-1"), /券类型/);
   assert.throws(() => parseCouponCode("FUZZYQZ-ZY-2026101", "fuzzy"), /门店.*不符/);
+});
+
+test("Quanzhou compact drink codes preserve identity and reject other stores and malformed codes", () => {
+  for (const number of ["2026001", "2026101", "20261", `2026${"0".repeat(189)}`]) {
+    const code = `FUZZYQZ${number}`;
+    assert.deepEqual(parseCouponCode(` ${code} `, "fuzzy_qz"), { code, store: "fuzzy_qz", type: "free_drink", number });
+    for (const store of ["fuzzy", "peanut"]) assert.throws(() => parseCouponCode(code, store), /门店.*不符/);
+  }
+  for (const code of ["FUZZYQZ2026", "FUZZYQZ202600A", "fuzzyqz2026001", "FUZZYQZ2025001", "FUZZY2026001", "PEANUT2026001", "FUZZYQZ2026-001", "FUZZYQZ2026１", `FUZZYQZ2026${"0".repeat(190)}`]) {
+    assert.throws(() => parseCouponCode(code), /格式/);
+  }
+});
+
+test("Quanzhou compact drink codes can be activated and redeemed alongside standard codes", (t) => {
+  const { repository } = setup(t);
+  const codes = ["FUZZYQZ2026001", "FUZZYQZ-ZY-2026001", "FUZZYQZ-100-2026001"];
+  const issued = repository.issueBatch("fuzzy_qz", batch([...codes, " FUZZYQZ2026001 "]), "account");
+  assert.equal(issued.issuedCount, 3);
+  assert.match(issued.results[3].error.message, /重复/);
+  const items = repository.list("fuzzy_qz", 1).items;
+  for (const code of codes) assert.equal(items.find(item => item.code === code).type, code.includes("-100-") ? "cash_100" : "free_drink");
+  assert.equal(repository.issueBatch("fuzzy", batch([codes[0]]), "account").issuedCount, 0);
+  const redemption = normalizeRedeemBatch({ requestId: randomUUID(), codes, operator: "核销人", redeemedAt: "2026-09-14T13:00+08:00" });
+  assert.equal(repository.redeemBatch("peanut", redemption, "account").redeemedCount, 0);
+  const result = repository.redeemBatch("fuzzy_qz", { ...redemption, requestId: randomUUID() }, "account");
+  assert.equal(result.redeemedCount, 3);
+  assert.equal(result.failedCount, 0);
+  for (const item of repository.list("fuzzy_qz", 1).items) assert.equal(item.status, "redeemed");
 });
 
 test("batch common fields and limits reject invalid input before writes", () => {
