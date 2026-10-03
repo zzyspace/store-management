@@ -472,8 +472,8 @@ body > .topbar { height: auto; min-height: 64px; padding-block: 13px; border: 0;
 body > .topbar > .center-switcher { position: static; }
 body > .topbar .center-switcher-menu { top: calc(100% + 9px); left: auto; }
 
-.center-switcher-option[data-center="business"] svg { color: #007aff; }
-:root[data-theme="dark"] .center-switcher-option[data-center="business"] svg { color: #72b5ff; }
+.center-switcher-option[data-center="business"] svg { color: #0d9488; }
+:root[data-theme="dark"] .center-switcher-option[data-center="business"] svg { color: #5eead4; }
 
 /* Shared selector palette, independent of each dashboard's page colors. */
 .center-switcher-menu { --ink:#17202a; --line:#e3e8ef; --surface:#fff; --surface-strong:#fff; --surface-muted:#f5f7fa; --soft:#f5f7fa; --brand:#007aff; --brand-soft:#eaf3ff; background:var(--surface-strong); color:var(--ink); font-family:-apple-system,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif; line-height:1.5; box-shadow:0 24px 60px rgba(28,28,30,.22); }
