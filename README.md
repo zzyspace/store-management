@@ -73,17 +73,13 @@ npm run test:browser
 
 ## 发布与回滚
 
-日常更新使用服务器直接从 GitHub 获取指定提交：
+日常更新在 comeover 仓库根目录运行（先 `npm run mirrors:push` 发布镜像）：
 
 ```sh
-# 完成测试、提交和推送后，明确选择本次已验收的完整提交 SHA。
-release_sha=$(git rev-parse HEAD)
-bash deploy/deploy-store-management.sh "$release_sha" root@139.196.140.215
+npm run deploy -- store-management
 ```
 
-脚本要求40位完整提交SHA，不接受 `main` 或其他移动分支名。本机只通过SSH发送部署脚本，服务器使用 `git fetch origin <SHA>` 下载代码，在独立候选目录检出指定提交并核对SHA；不会上传 Git bundle，也不会在正在运行的目录执行 `git pull`。依赖锁文件不变时复用上一版本依赖，否则使用 `npm ci --omit=dev` 安装。候选测试、SQLite在线备份及备份副本升级验证通过后，才原子切换 `current` 并重启门店服务；本机回环与正式HTTPS资源或鉴权检查失败时自动切回旧目录，保留数据库和备份。
-
-首次配置仓库读取权限时，在服务器生成专用密钥 `/root/.ssh/id_ed25519_github_store_management`，将对应 `.pub` 添加到 GitHub `zzyspace/store-management` 的 **Settings → Deploy keys**，不要启用 **Allow write access**。私钥只保留在服务器，权限0600；脚本显式指定此密钥及严格主机验证，不使用其他仓库的Deploy Key。服务器需要预先可信的GitHub主机记录、现有门店服务和SQLite数据目录。部署加锁，拒绝同时运行两次。
+共享脚本 `scripts/deploy-release.sh` 只部署已发布到镜像的提交，在本机只打包本项目历史上传，服务器不需要 GitHub 权限，也不会在正在运行的目录执行 `git pull`。服务器在 `/opt/store-management/releases/<SHA>` 建候选目录并核对 SHA，再按 `deploy/release.sh`：依赖锁文件不变时复用上一版本依赖，否则 `npm ci --omit=dev`；用 `nobody` 跑测试并确认服务账号可读取 jsQR；SQLite 在线备份 `coupons.db` 并在备份副本上验证结构升级；之后才原子切换 `current`、重启门店服务，核对本机回环与正式 HTTPS 的资源、写接口鉴权及在线数据库完整性。切换后任一检查失败会自动切回旧目录，数据库和备份保留。部署加锁，拒绝同时运行两次；成功后只保留最近 5 个版本目录和 10 份备份。
 
 首次安装整个门店服务的步骤及顺序：
 

@@ -1,40 +1,35 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { spawnSync, execFileSync } from 'node:child_process';
-const script = path.resolve(import.meta.dirname, '../deploy/deploy-store-management.sh');
 
-test('deployment rejects moving branches, malformed SHAs, destinations and server arguments', () => {
-  for (const args of [[], ['main'], ['9fb9b19'], ['a'.repeat(40) + ';echo bad'], ['a'.repeat(40), 'root@host;echo bad'], ['a'.repeat(40), '-oProxyCommand=bad'], ['--on-server', 'a'.repeat(40), 'unexpected']]) {
-    const result = spawnSync('bash', [script, ...args], { encoding: 'utf8' });
-    assert.equal(result.status, 2, JSON.stringify({ args, stderr: result.stderr }));
-  }
-  assert.equal(spawnSync('bash', [script, '--help']).status, 0);
+// Deployment runs through comeover/scripts/deploy-release.sh; these hooks hold the store-specific steps.
+const hooks = fs.readFileSync(path.resolve(import.meta.dirname, '../deploy/release.sh'), 'utf8');
+
+test('release hooks restart only the store service and keep its unit and state paths', () => {
+  assert.match(hooks, /^SERVICES=\(store-management\.service\)$/m);
+  assert.match(hooks, /^UNIT_FILES=\(deploy\/store-management\.service\)$/m);
+  assert.match(hooks, /^HEALTH_URL=http:\/\/127\.0\.0\.1:8791\/health\/store$/m);
+  assert.match(hooks, /^REQUIRED_PATHS=\(\/etc\/store-management\.env \/var\/lib\/store-management\/coupons\.db\)$/m);
 });
 
-test('deployment dispatches an exact committed SHA and script only; dirty tracked files prevent dispatch', (t) => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'store-deploy-test-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  fs.mkdirSync(path.join(dir, 'deploy')); fs.mkdirSync(path.join(dir, 'bin'));
-  const copied = path.join(dir, 'deploy/deploy-store-management.sh');
-  fs.copyFileSync(script, copied);
-  const git = (...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim();
-  git('init', '-q'); git('add', 'deploy/deploy-store-management.sh');
-  git('-c', 'user.name=Deployment Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'fixture');
-  const sha = git('rev-parse', 'HEAD');
-  fs.writeFileSync(path.join(dir, 'bin/ssh'), '#!/bin/sh\nprintf "%s\\n" "$@" > "$DEPLOY_TEST_DIR/ssh-args"\ncat > "$DEPLOY_TEST_DIR/ssh-stdin"\n', { mode: 0o755 });
-  const env = { ...process.env, PATH: path.join(dir, 'bin') + ':' + process.env.PATH, DEPLOY_TEST_DIR: dir };
-  let result = spawnSync('bash', [copied, sha, 'root@deployment.example'], { env, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr);
-  const args = fs.readFileSync(path.join(dir, 'ssh-args'), 'utf8');
-  assert.ok(args.includes('StrictHostKeyChecking=yes'));
-  assert.ok(args.endsWith(`root@deployment.example\nbash -s -- --on-server ${sha}\n`));
-  assert.equal(fs.readFileSync(path.join(dir, 'ssh-stdin'), 'utf8'), fs.readFileSync(script, 'utf8'));
-  fs.unlinkSync(path.join(dir, 'ssh-args'));
-  fs.appendFileSync(copied, '\n# uncommitted change\n');
-  result = spawnSync('bash', [copied, sha, 'root@deployment.example'], { env, encoding: 'utf8' });
-  assert.equal(result.status, 1); assert.match(result.stderr, /Commit tracked changes/);
-  assert.equal(fs.existsSync(path.join(dir, 'ssh-args')), false);
+test('coupon data is backed up and the schema upgrade is proven on a copy before the switch', () => {
+  const backup = hooks.match(/release_backup\(\) \{([\s\S]*?)\nNODE\n\}/)?.[1];
+  assert.ok(backup, 'release_backup is defined');
+  assert.match(backup, /backup_sqlite \/var\/lib\/store-management\/coupons\.db/);
+  assert.match(backup, /copyFileSync\(process\.env\.BACKUP_FILE/);
+  assert.match(backup, /createRepository\(\{stateDir:dir\}\)/);
+});
+
+test('verification checks exact public assets, protected writes and live database integrity', () => {
+  const verify = hooks.slice(hooks.indexOf('release_verify()'));
+  assert.match(verify, /'https:\/\/comeover\.cn'/);
+  assert.match(verify, /assert\.equal\(await response\.text\(\),fs\.readFileSync\(file,'utf8'\)\)/);
+  assert.match(verify, /assert\.equal\(denied\.status,401\)/);
+  assert.match(verify, /PRAGMA integrity_check/);
+});
+
+test('tests run unprivileged and the service account can read the QR decoder', () => {
+  assert.match(hooks, /run_isolated node --test tests\/\*\.test\.js/);
+  assert.match(hooks, /runuser -u store-management -- test -r node_modules\/jsqr\/dist\/jsQR\.js/);
 });
