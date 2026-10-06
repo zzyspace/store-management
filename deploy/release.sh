@@ -11,6 +11,10 @@ release_prepare() {
   install_node_modules
   npm ls --omit=dev --depth=0 >/dev/null
   [[ -r node_modules/jsqr/dist/jsQR.js ]]
+  # The top bar comes from admin-auth-gateway; deploy the gateway first.
+  for asset in admin-shell.css admin-shell.js admin-theme.js; do
+    expect_status "https://comeover.cn/auth/accounts/$asset" 200
+  done
 }
 
 release_test() {

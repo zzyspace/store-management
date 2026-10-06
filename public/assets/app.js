@@ -451,54 +451,6 @@ $("storeTabs").addEventListener("click", (event) => { const button = event.targe
 $("previousPage").addEventListener("click", () => { if (state.page > 1) { state.page--; loadList(); } });
 $("nextPage").addEventListener("click", () => { if (state.page * 50 < state.total) { state.page++; loadList(); } });
 
-function renderTheme() {
-  const dark = document.documentElement.dataset.theme === "dark";
-  $("themeIcon").textContent = dark ? "☀️" : "🌙";
-  $("themeToggle").setAttribute("aria-label", dark ? "切换到浅色模式" : "切换到深色模式");
-  $("themeToggle").setAttribute("aria-pressed", String(dark));
-}
-$("themeToggle").addEventListener("click", () => {
-  const root = document.documentElement; root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark"; root.style.colorScheme = root.dataset.theme;
-  try { localStorage.setItem("comeover-admin-theme", root.dataset.theme); } catch {}
-  renderTheme();
-}); renderTheme();
-window.addEventListener("storage", (event) => {
-  if (event.key !== "comeover-admin-theme" || !["light", "dark"].includes(event.newValue)) return;
-  document.documentElement.dataset.theme = event.newValue;
-  document.documentElement.style.colorScheme = event.newValue;
-  renderTheme();
-});
-
-function setCenters(open) {
-  $("centerSwitcherMenu").hidden = !open; $("centerSwitcherBackdrop").hidden = !open;
-  $("centerSwitcherTrigger").setAttribute("aria-expanded", String(open));
-  $("centerSwitcher").classList.toggle("is-open", open); document.body.classList.toggle("switcher-open", open);
-  if (open) $("centerSwitcherMenu").querySelector('[aria-current="page"]')?.focus();
-  else $("centerSwitcherTrigger").focus();
-}
-$("centerSwitcherTrigger").addEventListener("click", () => setCenters($("centerSwitcherMenu").hidden));
-$("centerSwitcherBackdrop").addEventListener("click", () => setCenters(false));
-document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("centerSwitcherMenu").hidden) setCenters(false); });
-async function loadCenters() {
-  for (const link of $("centerSwitcherMenu").querySelectorAll("[data-center]")) link.hidden = link.dataset.center !== "store";
-  try {
-    const response = await fetch("/auth/api/session", { cache: "no-store" });
-    if (!response.ok) return;
-    const session = await response.json();
-    for (const link of $("centerSwitcherMenu").querySelectorAll("[data-center]")) {
-      link.hidden = !session.apps?.includes(link.dataset.center);
-      if (session.destinations?.[link.dataset.center]) link.href = session.destinations[link.dataset.center];
-    }
-    if (session.canManageAccounts && !$("centerSwitcherMenu").querySelector("[data-management]")) {
-      const link = document.createElement("a"); link.className = "center-switcher-option"; link.href = "/auth/accounts"; link.setAttribute("role", "menuitem"); link.dataset.management = "true";
-      link.innerHTML = '<svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9.5" r="4.25" fill="currentColor" fill-opacity=".16"/><path d="M4.5 25.5c.65-5.8 3.15-8.5 7.5-8.5 3.25 0 5.45 1.5 6.65 4.55"/><circle cx="23.25" cy="22.75" r="3.25" fill="currentColor" fill-opacity=".16"/><path d="M23.25 17.5v1.15M23.25 26.85V28M18 22.75h1.15M27.35 22.75h1.15M19.55 19.05l.8.8M26.15 25.65l.8.8M26.95 19.05l-.8.8M20.35 25.65l-.8.8"/><circle cx="23.25" cy="22.75" r="1.05" fill="currentColor" stroke="none"/></svg><span>账号管理</span><span></span>';
-      $("centerSwitcherMenu").append(link);
-    }
-    $("centerSwitcherTrigger").disabled = !session.apps?.some((app) => app !== "store") && !session.canManageAccounts;
-  } catch { /* Current center remains usable while navigation discovery is unavailable. */ }
-  $("centerSwitcherTrigger").querySelector(".center-switcher-chevron").toggleAttribute("hidden", $("centerSwitcherTrigger").disabled);
-}
-
 function setFeatureMenu(open) {
   $("featureSwitcherMenu").hidden = !open;
   $("featureSwitcherTrigger").setAttribute("aria-expanded", String(open));
@@ -523,7 +475,6 @@ document.addEventListener("click", (event) => { if (!$("featureSwitcher").contai
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("featureSwitcherMenu").hidden) { setFeatureMenu(false); $("featureSwitcherTrigger").focus(); } });
 
 async function initialize() {
-  loadCenters();
   try {
     const session = await api("/store/api/session"); state.session = session;
     $("storeTabs").replaceChildren(...session.stores.map((store) => {

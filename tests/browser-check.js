@@ -52,8 +52,8 @@ try {
   await loginAs("admin"); await page.goto(f.base + "/store");
   await page.getByText("FZ-20260909-001", { exact: true }).waitFor();
   assert.equal(await page.title(), "门店管理");
-  assert.equal(await page.locator("#centerSwitcherTrigger").isDisabled(), true);
-  assert.equal(await page.locator("#centerSwitcherChevron").isVisible(), false);
+  assert.equal(await page.locator("#center-trigger").isDisabled(), true);
+  assert.equal(await page.locator("#center-trigger .center-switcher-chevron").isVisible(), false);
   assert.equal(await page.locator("#storeTabs button").count(), 3);
   assert.equal(await page.locator("#featureSwitcherChevron").isVisible(), false);
   for (const theme of ["light", "dark"]) {
@@ -165,9 +165,9 @@ try {
   }
   f.cookies.owner = `admin_session=${f.sessions.login("owner", "local-fixture-password").token}`;
   await loginAs("owner"); await page.goto(f.base + "/store");
-  await page.waitForFunction(() => !document.getElementById("centerSwitcherTrigger").disabled);
-  assert.equal(await page.locator("#centerSwitcherChevron").isVisible(), true);
-  assert.equal(await page.locator("#centerSwitcherChevron").getAttribute("hidden"), null);
+  await page.waitForFunction(() => !document.getElementById("center-trigger").disabled);
+  assert.equal(await page.locator("#center-trigger .center-switcher-chevron").isVisible(), true);
+  assert.equal(await page.locator("#center-trigger .center-switcher-chevron").getAttribute("hidden"), null);
   // The canonical account icon lives in the shared admin shell served by admin-auth-gateway.
   const reference = fs.readFileSync(path.resolve(import.meta.dirname, "../../admin-auth-gateway/public/admin-shell.js"), "utf8").match(/const ACCOUNTS = \{[^}]*?icon: '(<svg[^']+<\/svg>)'/)[1];
   assert.equal(await page.locator('[data-management] svg').evaluate((svg, reference) => svg.outerHTML === new DOMParser().parseFromString(reference, "text/html").querySelector("svg").outerHTML, reference), true);
@@ -175,9 +175,9 @@ try {
     for (const width of [1280, 390]) {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
       await page.evaluate((theme) => { document.documentElement.dataset.theme = theme; document.documentElement.style.colorScheme = theme; }, theme);
-      await page.locator("#centerSwitcherTrigger").click();
+      await page.locator("#center-trigger").click();
       assert.equal(await page.locator('[data-management]').isVisible(), true);
-      await page.locator("#centerSwitcherChevron").evaluate(async (svg) => { await Promise.all(svg.getAnimations().map(animation => animation.finished)); });
+      await page.locator("#center-trigger .center-switcher-chevron").evaluate(async (svg) => { await Promise.all(svg.getAnimations().map(animation => animation.finished)); });
       const colors = await page.evaluate(() => ({
         header: getComputedStyle(document.querySelector(".center-icon")).color,
         store: getComputedStyle(document.querySelector('[data-center="store"] svg')).color,
@@ -186,11 +186,11 @@ try {
       }));
       assert.equal(colors.header, theme === "light" ? "rgb(232, 93, 142)" : "rgb(244, 134, 173)");
       assert.equal(colors.header, colors.store);
-      assert.equal(colors.accounts, "rgb(167, 139, 250)");
+      assert.equal(colors.accounts, theme === "light" ? "rgb(142, 142, 147)" : "rgb(161, 161, 170)"); // Account management icon is gray since 2026-10-03.
       assert.ok(!colors.other.includes(colors.store));
       await checkSize(`navigation-${theme}-${width}`, width);
       await page.keyboard.press("Escape");
-      assert.equal(await page.locator("#centerSwitcherMenu").isVisible(), false);
+      assert.equal(await page.locator("#center-menu").isVisible(), false);
     }
   }
   await checkCouponList({ page, f, checkSize });

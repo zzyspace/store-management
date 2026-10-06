@@ -73,6 +73,8 @@ npm run test:browser
 
 ## 发布与回滚
 
+顶栏（后台切换、深浅主题、退出登录）使用网关提供的共享后台外壳 `/auth/accounts/admin-shell.*`，功能切换放在外壳的 `data-admin-slot` 中，见 admin-auth-gateway README「共享后台外壳」；须先部署网关。
+
 日常更新在 comeover 仓库根目录运行（先 `npm run mirrors:push` 发布镜像）：
 
 ```sh

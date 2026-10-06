@@ -2,48 +2,24 @@
 <html lang="zh-CN"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <meta name="color-scheme" content="light dark"><title>门店管理</title>
-<script src="/store/assets/theme.js"></script>
+<!-- Shared admin top bar and theme, served by admin-auth-gateway. admin-shell.js must precede user-menu.js. -->
+<link rel="stylesheet" href="/auth/accounts/admin-shell.css">
+<script src="/auth/accounts/admin-theme.js"></script>
 <link rel="stylesheet" href="/store/assets/style.css">
 <script src="/store/assets/vendor/jsQR.js" defer></script>
-<script src="/store/assets/app.js" type="module"></script>
 
 <link rel="stylesheet" href="/auth/accounts/user-menu.css">
+<script src="/auth/accounts/admin-shell.js" defer></script>
 <script src="/auth/accounts/user-menu.js" defer></script>
-</head><body><nav class="topbar" aria-label="门店管理导航">
-        <div class="report-nav-group">
-        <div class="center-switcher" id="centerSwitcher">
-          <button class="center-switcher-trigger" id="centerSwitcherTrigger" type="button" aria-label="门店管理" aria-haspopup="menu" aria-expanded="false" aria-controls="centerSwitcherMenu" disabled>
-            <svg class="center-icon" viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15v10a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3V15M4 12l2.5-7h19l2.5 7M13 28v-8h6v8"/><path d="M4 12a4 4 0 0 0 8 0 4 4 0 0 0 8 0 4 4 0 0 0 8 0"/></svg><span>门店管理</span>
-            <svg class="center-switcher-chevron" id="centerSwitcherChevron" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="m5 7 5 5 5-5"/></svg>
-          </button>
-          <div class="center-switcher-menu" id="centerSwitcherMenu" role="menu" hidden>
-            <a class="center-switcher-option" data-center="business" role="menuitem" href="/business" hidden><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 26V16M16 26V6M25 26V11"/></svg><span>营业数据</span><span></span></a>
-            <a class="center-switcher-option" data-center="expense" role="menuitem" href="/expense"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="7" width="22" height="19" rx="4" fill="currentColor" fill-opacity=".16"/><path d="M8 7V5.5A2.5 2.5 0 0 1 10.5 3H22"/><path d="M10 13h8"/><path d="m12 17 2.2 2.2 3.5-3.7"/><circle cx="24" cy="24" r="4" fill="currentColor" stroke="none"/><path d="M24 22v4M22 24h4" stroke="white" stroke-width="1.8"/></svg><span>报账中心</span><span></span></a>
-            <a class="center-switcher-option" data-center="invoice" role="menuitem" href="/invoice"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3.5" width="18" height="25" rx="3"/><path d="M11 9h10M11 14h8M11 19h5"/><circle cx="23" cy="23.5" r="4"/><path d="m21.3 23.5 1.2 1.2 2.2-2.5"/></svg><span>发票中心</span><span></span></a>
-            <a class="center-switcher-option" data-center="staff" role="menuitem" href="/staff"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="10" r="5"/><path d="M6.5 27c.8-6.2 4-9.2 9.5-9.2s8.7 3 9.5 9.2"/></svg><span>员工中心</span><span></span></a>
-            <a class="center-switcher-option" data-center="store" role="menuitem" href="/store" aria-current="page"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15v10a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3V15M4 12l2.5-7h19l2.5 7M13 28v-8h6v8"/><path d="M4 12a4 4 0 0 0 8 0 4 4 0 0 0 8 0 4 4 0 0 0 8 0"/></svg><span>门店管理</span><span class="center-switcher-check" aria-hidden="true">✓</span></a>
-          </div>
-        </div>
-          <span class="report-nav-divider" aria-hidden="true"></span>
-          <div class="report-switcher" id="featureSwitcher">
-            <button class="report-switcher-trigger" id="featureSwitcherTrigger" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="featureSwitcherMenu" disabled><span id="featureLabel">优惠券管理</span><svg class="report-switcher-chevron" id="featureSwitcherChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="m7 10 5 5 5-5"/></svg></button>
-            <div class="report-switcher-menu" id="featureSwitcherMenu" role="menu" aria-label="切换功能" hidden></div>
-          </div>
-        </div>
-        <div class="topbar-actions">
-          <button class="theme-toggle" id="themeToggle" type="button" aria-label="切换到深色模式" aria-pressed="false"><span class="theme-icon" id="themeIcon" aria-hidden="true">🌙</span></button>
-          <form method="post" action="/logout">
-            <input type="hidden" name="returnTo" value="/store" />
-            <button class="logout-button" type="submit">
-              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M15 8l4 4-4 4M19 12H9" />
-              </svg>
-              <span>退出登录</span>
-            </button>
-          </form>
+<script src="/store/assets/app.js" type="module"></script>
+</head><body><nav class="topbar" aria-label="门店管理导航" data-admin-center="store" data-return-to="/store">
+        <div data-admin-slot>
+            <div class="report-switcher" id="featureSwitcher">
+              <button class="report-switcher-trigger" id="featureSwitcherTrigger" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="featureSwitcherMenu" disabled><span id="featureLabel">优惠券管理</span><svg class="report-switcher-chevron" id="featureSwitcherChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="m7 10 5 5 5-5"/></svg></button>
+              <div class="report-switcher-menu" id="featureSwitcherMenu" role="menu" aria-label="切换功能" hidden></div>
+            </div>
         </div>
       </nav>
-      <button class="center-switcher-backdrop" id="centerSwitcherBackdrop" type="button" aria-label="关闭后台选择列表" hidden></button>
     <div class="page">
 
 
