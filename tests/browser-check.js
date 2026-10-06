@@ -168,7 +168,8 @@ try {
   await page.waitForFunction(() => !document.getElementById("centerSwitcherTrigger").disabled);
   assert.equal(await page.locator("#centerSwitcherChevron").isVisible(), true);
   assert.equal(await page.locator("#centerSwitcherChevron").getAttribute("hidden"), null);
-  const reference = fs.readFileSync(path.resolve(import.meta.dirname, "../../wechat-claw/src/admin/public/admin.html"), "utf8").match(/link.innerHTML = '(<svg[^\n]+?<\/svg>)<span>账号管理/)[1];
+  // The canonical account icon lives in the shared admin shell served by admin-auth-gateway.
+  const reference = fs.readFileSync(path.resolve(import.meta.dirname, "../../admin-auth-gateway/public/admin-shell.js"), "utf8").match(/const ACCOUNTS = \{[^}]*?icon: '(<svg[^']+<\/svg>)'/)[1];
   assert.equal(await page.locator('[data-management] svg').evaluate((svg, reference) => svg.outerHTML === new DOMParser().parseFromString(reference, "text/html").querySelector("svg").outerHTML, reference), true);
   for (const theme of ["light", "dark"]) {
     for (const width of [1280, 390]) {
