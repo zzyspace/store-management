@@ -68,21 +68,21 @@ export async function checkCouponList({ page, f, checkSize }) {
     assert.equal(await page.locator('#detailRedeemOperator').innerText(), '暂无核销记录');
     assert.equal(await page.locator('#detailRedeemedAt').isVisible(), false);
     // A refresh/store change closes and clears the previous record before new data arrives.
-    await page.evaluate(() => { const select = document.getElementById('storeSelect'); select.value = 'peanut'; select.dispatchEvent(new Event('change')); });
+    await page.evaluate(() => document.querySelector('#storeTabs [data-store="peanut"]').click());
     await page.locator('#couponDetailDialog').waitFor({ state: 'hidden' });
     await page.locator('#couponRows').getByText('PN-20260909-001', { exact: true }).waitFor();
     assert.equal(await page.locator('#detailCode').textContent(), '');
     await page.route('**/store/api/coupons?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, items: [], total: 0, page: 1, pageSize: 50 }) }));
-    await page.evaluate(() => document.getElementById('storeSelect').dispatchEvent(new Event('change')));
+    await page.evaluate(() => document.querySelector('#storeTabs [aria-pressed="true"]').click());
     await page.locator('#couponRows').getByText('该门店暂无优惠券').waitFor();
     await page.unroute('**/store/api/coupons?**');
     await page.route('**/store/api/coupons?**', route => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ success: false, error: { message: '测试查询失败' } }) }));
-    await page.evaluate(() => document.getElementById('storeSelect').dispatchEvent(new Event('change')));
+    await page.evaluate(() => document.querySelector('#storeTabs [aria-pressed="true"]').click());
     await page.getByRole('button', { name: '重试', exact: true }).waitFor();
     await page.unroute('**/store/api/coupons?**'); await page.getByRole('button', { name: '重试', exact: true }).click();
     await page.locator('#couponRows').getByText('PN-20260909-001', { exact: true }).click();
     await page.route('**/store/api/coupons?**', route => route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ success: false, error: { message: '会话失效' } }) }));
-    await page.evaluate(() => document.getElementById('storeSelect').dispatchEvent(new Event('change')));
+    await page.evaluate(() => document.querySelector('#storeTabs [aria-pressed="true"]').click());
     await page.waitForFunction(() => document.getElementById('pageStatus').textContent.includes('登录或授权已失效'));
     assert.equal(await page.locator('#couponDetailDialog').isVisible(), false);
     assert.equal(await page.locator('#detailCode').textContent(), '');

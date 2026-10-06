@@ -140,7 +140,7 @@ export async function checkScanner({ page, f, checkSize }) {
   await page.waitForFunction(() => document.getElementById("scanVideo").srcObject !== null);
   await page.route("**/store/api/coupons?**", (route) => route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ success: false, error: { message: "登录已失效" } }) }));
   // Trigger the existing list request while the scanner is open to observe a 401.
-  await page.evaluate(() => { const select = document.getElementById("storeSelect"); select.dispatchEvent(new Event("change")); });
+  await page.evaluate(() => document.querySelector('#storeTabs [aria-pressed="true"]').click());
   await page.locator("#scanDialog").waitFor({ state: "hidden" });
   assert.equal(await page.evaluate(() => window.testCamera.tracks.every((track) => track.readyState === "ended")), true);
   await page.unroute("**/store/api/coupons?**");

@@ -10,8 +10,9 @@
 <link rel="stylesheet" href="/auth/accounts/user-menu.css">
 <script src="/auth/accounts/user-menu.js" defer></script>
 </head><body><nav class="topbar" aria-label="门店管理导航">
+        <div class="report-nav-group">
         <div class="center-switcher" id="centerSwitcher">
-          <button class="center-switcher-trigger" id="centerSwitcherTrigger" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="centerSwitcherMenu" disabled>
+          <button class="center-switcher-trigger" id="centerSwitcherTrigger" type="button" aria-label="门店管理" aria-haspopup="menu" aria-expanded="false" aria-controls="centerSwitcherMenu" disabled>
             <svg class="center-icon" viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15v10a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3V15M4 12l2.5-7h19l2.5 7M13 28v-8h6v8"/><path d="M4 12a4 4 0 0 0 8 0 4 4 0 0 0 8 0 4 4 0 0 0 8 0"/></svg><span>门店管理</span>
             <svg class="center-switcher-chevron" id="centerSwitcherChevron" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="m5 7 5 5 5-5"/></svg>
           </button>
@@ -23,9 +24,11 @@
             <a class="center-switcher-option" data-center="store" role="menuitem" href="/store" aria-current="page"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15v10a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3V15M4 12l2.5-7h19l2.5 7M13 28v-8h6v8"/><path d="M4 12a4 4 0 0 0 8 0 4 4 0 0 0 8 0 4 4 0 0 0 8 0"/></svg><span>门店管理</span><span class="center-switcher-check" aria-hidden="true">✓</span></a>
           </div>
         </div>
-        <div class="context-selectors">
-          <label><select id="storeSelect" aria-label="选择门店" disabled><option>加载中</option></select></label>
-          <label><select id="featureSelect" aria-label="选择功能" disabled><option>加载中</option></select></label>
+          <span class="report-nav-divider" aria-hidden="true"></span>
+          <div class="report-switcher" id="featureSwitcher">
+            <button class="report-switcher-trigger" id="featureSwitcherTrigger" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="featureSwitcherMenu" disabled><span id="featureLabel">优惠券管理</span><svg class="report-switcher-chevron" id="featureSwitcherChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="m7 10 5 5 5-5"/></svg></button>
+            <div class="report-switcher-menu" id="featureSwitcherMenu" role="menu" aria-label="切换功能" hidden></div>
+          </div>
         </div>
         <div class="topbar-actions">
           <button class="theme-toggle" id="themeToggle" type="button" aria-label="切换到深色模式" aria-pressed="false"><span class="theme-icon" id="themeIcon" aria-hidden="true">🌙</span></button>
@@ -45,7 +48,8 @@
 
 
 <main>
-<header class="hero"><div><h1>优惠券管理</h1><p id="storeDescription">查看优惠券激活与核销记录。</p></div><div class="hero-actions">
+<header class="hero"><div><h1>优惠券管理</h1><p id="storeDescription">查看优惠券激活与核销记录。</p>
+<div class="store-tabs" id="storeTabs" role="group" aria-label="选择门店" hidden></div></div><div class="hero-actions">
 <button class="primary coupon-action coupon-action-issue" id="issueOpen" hidden><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 18H4a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M7 7v2m0 4v2"/><path d="M18 13v8m-4-4h8" stroke-width="2.6"/></svg><span>激活优惠券</span></button>
 <button class="primary coupon-action" id="redeemOpen" hidden><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 18H4a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M7 7v2m0 4v2"/><path d="m13 17 3 3 6-7" stroke-width="2.6"/></svg><span>核销优惠券</span></button>
 </div></header>

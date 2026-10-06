@@ -19,7 +19,7 @@ async function api(url, options = {}) {
       $("issueDialog").close(); $("redeemDialog").close();
       state.session = null;
       $("issueOpen").hidden = true; $("redeemOpen").hidden = true;
-      $("storeSelect").disabled = true;
+      for (const button of $("storeTabs").children) button.disabled = true;
       $("couponRows").replaceChildren();
       status("pageStatus", "登录或授权已失效，请重新登录。", true);
       const login = document.createElement("a"); login.href = "/login?returnTo=/store"; login.textContent = "重新登录"; $("pageStatus").append(" ", login);
@@ -94,7 +94,7 @@ function closeCouponDetail() {
 $("couponDetailDialog").addEventListener("close", () => {
   if ($("couponDetailDialog").open) return;
   clearCouponDetail();
-  (state.detailTrigger?.isConnected ? state.detailTrigger : $("storeSelect")).focus({ preventScroll: true }); state.detailTrigger = null;
+  (state.detailTrigger?.isConnected ? state.detailTrigger : $("storeTabs").querySelector("[aria-pressed=\"true\"]") ?? $("pageStatus")).focus({ preventScroll: true }); state.detailTrigger = null;
 });
 $("couponDetailDialog").addEventListener("click", (event) => {
   if (event.target !== event.currentTarget) return;
@@ -141,7 +141,8 @@ async function loadList() {
   const request = ++state.request, store = state.store, page = state.page;
   state.loading = true; state.items = []; state.total = 0;
   emptyRow("正在加载…"); renderPagination(); status("pageStatus");
-  $("storeDescription").textContent = `${storeLabel(store)} · 查看优惠券激活与核销记录。`;
+  for (const button of $("storeTabs").children) button.setAttribute("aria-pressed", String(button.dataset.store === store));
+  $("storeDescription").textContent = `${$("storeTabs").hidden ? `${storeLabel(store)} · ` : ""}查看优惠券激活与核销记录。`;
   try {
     const result = await api(`/store/api/coupons?store=${encodeURIComponent(store)}&page=${page}`);
     if (request !== state.request || store !== state.store) return;
@@ -445,7 +446,8 @@ window.addEventListener("pagehide", finishScanning);
 document.addEventListener("visibilitychange", () => { if (document.hidden && $("scanDialog").open) scanner.fail("相机已暂停，已确认券码仍保留。返回后请点击“重试相机”。"); });
 
 for (const button of document.querySelectorAll("[data-close]")) button.addEventListener("click", () => $(button.dataset.close).close());
-$("storeSelect").addEventListener("change", () => { state.store = $("storeSelect").value; state.page = 1; loadList(); });
+// Selecting the current store again reloads it.
+$("storeTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-store]"); if (!button || button.disabled) return; state.store = button.dataset.store; state.page = 1; loadList(); });
 $("previousPage").addEventListener("click", () => { if (state.page > 1) { state.page--; loadList(); } });
 $("nextPage").addEventListener("click", () => { if (state.page * 50 < state.total) { state.page++; loadList(); } });
 
@@ -497,14 +499,38 @@ async function loadCenters() {
   $("centerSwitcherTrigger").querySelector(".center-switcher-chevron").toggleAttribute("hidden", $("centerSwitcherTrigger").disabled);
 }
 
+function setFeatureMenu(open) {
+  $("featureSwitcherMenu").hidden = !open;
+  $("featureSwitcherTrigger").setAttribute("aria-expanded", String(open));
+  $("featureSwitcher").classList.toggle("is-open", open);
+}
+function renderFeatures(features) {
+  const current = features[0];
+  $("featureLabel").textContent = current?.label || "优惠券管理";
+  $("featureSwitcherMenu").replaceChildren(...features.map((feature) => {
+    const option = document.createElement("button"); option.type = "button"; option.className = "report-switcher-option"; option.setAttribute("role", "menuitem");
+    option.setAttribute("aria-current", String(feature.id === current.id));
+    const label = document.createElement("span"); label.textContent = feature.label;
+    const check = document.createElement("span"); check.className = "report-switcher-check"; check.setAttribute("aria-hidden", "true"); check.textContent = feature.id === current.id ? "✓" : "";
+    option.append(label, check); option.addEventListener("click", () => setFeatureMenu(false)); return option;
+  }));
+  // Only offer the menu once there is another feature to switch to.
+  const single = features.length <= 1;
+  $("featureSwitcherTrigger").disabled = single; $("featureSwitcherChevron").toggleAttribute("hidden", single);
+}
+$("featureSwitcherTrigger").addEventListener("click", () => setFeatureMenu($("featureSwitcherMenu").hidden));
+document.addEventListener("click", (event) => { if (!$("featureSwitcher").contains(event.target)) setFeatureMenu(false); });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("featureSwitcherMenu").hidden) { setFeatureMenu(false); $("featureSwitcherTrigger").focus(); } });
+
 async function initialize() {
   loadCenters();
   try {
     const session = await api("/store/api/session"); state.session = session;
-    $("storeSelect").replaceChildren(...session.stores.map((store) => new Option(store.label, store.id)));
-    $("storeSelect").disabled = session.stores.length <= 1;
-    $("featureSelect").replaceChildren(...session.features.map((feature) => new Option(feature.label, feature.id)));
-    $("featureSelect").disabled = session.features.length <= 1;
+    $("storeTabs").replaceChildren(...session.stores.map((store) => {
+      const button = document.createElement("button"); button.type = "button"; button.dataset.store = store.id; button.textContent = store.label; return button;
+    }));
+    $("storeTabs").hidden = session.stores.length <= 1;
+    renderFeatures(session.features);
     $("issueOpen").hidden = !can("coupon:issue");
     $("redeemOpen").hidden = !can("coupon:redeem");
     state.store = session.stores[0].id; await loadList();

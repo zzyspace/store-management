@@ -54,7 +54,8 @@ try {
   assert.equal(await page.title(), "门店管理");
   assert.equal(await page.locator("#centerSwitcherTrigger").isDisabled(), true);
   assert.equal(await page.locator("#centerSwitcherChevron").isVisible(), false);
-  assert.equal(await page.locator("#storeSelect option").count(), 3);
+  assert.equal(await page.locator("#storeTabs button").count(), 3);
+  assert.equal(await page.locator("#featureSwitcherChevron").isVisible(), false);
   for (const theme of ["light", "dark"]) {
     await page.evaluate((theme) => { document.documentElement.dataset.theme = theme; document.documentElement.style.colorScheme = theme; }, theme);
     for (const width of [1440, 390, 320]) {
@@ -103,20 +104,20 @@ try {
   await checkRedemption({ page, f, checkSize });
 
   // Release an older store response after a newer selection has already rendered.
-  await page.locator("#storeSelect").selectOption("peanut"); await page.getByText("PN-20260909-001", { exact: true }).waitFor();
+  await page.locator('#storeTabs [data-store="peanut"]').click(); await page.getByText("PN-20260909-001", { exact: true }).waitFor();
   let release, started;
   const delay = new Promise((resolve) => { release = resolve; }), pending = new Promise((resolve) => { started = resolve; });
   await page.route("**/store/api/coupons?store=fuzzy&*", async (route) => { const response = await route.fetch(); started(); await delay; await route.fulfill({ response }); });
-  await page.locator("#storeSelect").selectOption("fuzzy"); await pending;
-  await page.locator("#storeSelect").selectOption("peanut"); await page.getByText("PN-20260909-001", { exact: true }).waitFor();
+  await page.locator('#storeTabs [data-store="fuzzy"]').click(); await pending;
+  await page.locator('#storeTabs [data-store="peanut"]').click(); await page.getByText("PN-20260909-001", { exact: true }).waitFor();
   const stale = page.waitForResponse((response) => response.url().includes("coupons?store=fuzzy")); release(); await stale;
   await page.waitForTimeout(100);
   assert.equal(await page.getByText("FZ-20260909-001", { exact: true }).count(), 0);
-  assert.equal(await page.locator("#storeSelect").inputValue(), "peanut"); await page.unrouteAll();
+  assert.equal(await page.locator('#storeTabs [aria-pressed="true"]').getAttribute("data-store"), "peanut"); await page.unrouteAll();
 
   await loginAs("manager"); await page.goto(f.base + "/store"); await page.locator("#couponRows").getByText("FUZZY-100-9001", { exact: true }).waitFor();
-  assert.equal(await page.locator("#storeSelect").isDisabled(), true);
-  assert.equal(await page.locator("#storeSelect option").count(), 1);
+  assert.equal(await page.locator("#storeTabs").isVisible(), false);
+  assert.equal(await page.locator("#storeTabs button").count(), 1);
   await loginAs("partner"); await page.goto(f.base + "/store"); await page.locator("#couponRows").getByText("FUZZY-100-9001", { exact: true }).waitFor();
   assert.equal(await page.locator("#issueOpen").isVisible(), false); assert.equal(await page.locator("#redeemOpen").isVisible(), false);
   await loginAs("issuer"); await page.goto(f.base + "/store");
