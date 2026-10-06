@@ -32,8 +32,16 @@ test("real gateway enforces store identity, permissions, origin, scopes, version
   const login = await f.request("/login?returnTo=/store", "");
   assert.match(await login.text(), /门店管理/);
   assert.equal((await f.request("/login?returnTo=/store", f.cookies.admin)).headers.get("location"), "/store");
+  // Grant changes apply live to the existing login: the session stays valid but sees only the new scope.
   f.grant("manager", "manager", ["peanut"], ["coupon:view"]);
-  assert.equal((await f.request("/store/api/session", f.cookies.manager)).status, 401);
+  const narrowed = await (await f.request("/store/api/session", f.cookies.manager)).json();
+  assert.deepEqual(narrowed.stores.map((s) => s.id), ["peanut"]); assert.deepEqual(narrowed.permissions, ["coupon:view"]);
+  assert.equal((await f.request("/store/api/coupons?store=fuzzy", f.cookies.manager)).status, 403);
+  assert.equal((await post("/store/api/coupons", f.cookies.manager, { ...data, store: "peanut", code: "INT-02" })).status, 403);
+  // A disabled store grant on a still-valid login is a permission failure, not an authentication failure.
+  const access = f.accounts.getAccess("partner", "store");
+  f.accounts.putAccess({ ...access, enabled: false }, { actor: "fixture", expectedVersion: access.version });
+  assert.equal((await f.request("/store/api/session", f.cookies.partner)).status, 403);
   const admin = f.accounts.getAccount("admin"); f.accounts.updateAccount("admin", { enabled: false }, { actor: "fixture", expectedVersion: admin.version });
   assert.equal((await f.request("/store/api/session", f.cookies.admin)).status, 401);
   // A stopped/unreachable gateway must not fall back to anonymous or role-based access.
@@ -64,9 +72,9 @@ test("batch endpoint authorizes first, supports partial results and concurrent r
   const duplicate = await (await post(f.cookies.manager, { ...data, requestId: randomUUID() })).json();
   assert.equal(duplicate.issuedCount, 0); assert.equal(duplicate.failedCount, 4);
   assert.equal((await post(f.cookies.manager, { ...data, requestId: randomUUID(), codes: Array(51).fill("FUZZY-ZY-9") })).status, 400);
-  // Replays still require current store authorization.
+  // Replays still require current store authorization, which applies live to the existing login.
   f.grant("manager", "manager", ["peanut"], ["coupon:view"]);
-  assert.equal((await post(f.cookies.manager)).status, 401);
+  assert.equal((await post(f.cookies.manager)).status, 403);
   for (const asset of ["coupon-code.js", "coupon-scanner.js", "vendor/jsQR.js"]) {
     const reply = await f.request(`/store/assets/${asset}`);
     assert.equal(reply.status, 200); assert.match(reply.headers.get("content-type"), /javascript/);
@@ -104,7 +112,7 @@ test("batch redemption enforces permissions, time, concurrency, replay and indep
   const future = issue("FUZZY-ZY-2999", Date.now() + 3600000);
   assert.equal((await f.request(`/store/api/coupons/${future.id}/redeem`, f.cookies.manager, { method: "POST", body: JSON.stringify({ store: "fuzzy" }) })).status, 409);
   f.grant("admin", "admin", "all", ["coupon:view"]);
-  assert.equal((await post(f.cookies.admin)).status, 401);
+  assert.equal((await post(f.cookies.admin)).status, 403);
 });
 
 test("coupon deletion requires explicit permission and store scope and preserves history", async (t) => {
@@ -157,5 +165,5 @@ test("coupon deletion requires explicit permission and store scope and preserves
   assert.equal(f.repository.get(again.id).status, "unredeemed", "old redemption replay must not redeem the new lifecycle");
   assert.equal(f.repository.redeem(again.id, "fuzzy", "fixture").status, "redeemed");
   f.grant("deleter", "manager", ["fuzzy"], ["coupon:view"]);
-  assert.equal((await remove(deleter)).status, 401);
+  assert.equal((await remove(deleter)).status, 403);
 });
