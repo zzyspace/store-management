@@ -1,10 +1,15 @@
 import express from "express";
 import path from "node:path";
 import { createGatewayAuth, gatewayAuthConfig } from "./gateway-auth.js";
-import { allowedStores, OperationError, requirePermission, requireStore, STORES, TYPES, validateAuthorization } from "./policy.js";
+import { allowedStores, DEMO_STORE, OperationError, requirePermission, requireStore, storeLabel, TYPES, validateAuthorization } from "./policy.js";
 import { normalizeBatch, normalizeCoupon, normalizeRedeemBatch } from "./repository.js";
 
-export function createApp({ repository, env = process.env }) {
+export function createApp({ repository, demoRepository, env = process.env }) {
+  const repositoryFor = (store) => {
+    if (store !== DEMO_STORE) return repository;
+    if (!demoRepository) throw new OperationError(404, "演示门店未启用。", "store");
+    return demoRepository;
+  };
   const config = gatewayAuthConfig({ ...env, ADMIN_AUTH_MODE: env.ADMIN_AUTH_MODE ?? "unified" });
   if (config.mode !== "unified") throw new Error("Store management requires unified authentication.");
   const app = express();
@@ -30,7 +35,7 @@ export function createApp({ repository, env = process.env }) {
   app.get("/store/api/session", (_request, response) => {
     const auth = response.locals.gatewayAuthorization;
     response.json({ success: true, account: { displayName: auth.account.displayName || auth.account.username },
-      stores: allowedStores(auth).map((id) => ({ id, label: STORES[id] })), permissions: auth.access.permissions,
+      stores: allowedStores(auth).map((id) => ({ id, label: storeLabel(id) })), permissions: auth.access.permissions,
       features: [{ id: "coupons", label: "优惠券管理" }], types: TYPES });
   });
   app.get("/store/api/coupons", (request, response) => {
@@ -39,14 +44,14 @@ export function createApp({ repository, env = process.env }) {
     const store = requireStore(auth, request.query.store);
     const page = Number(request.query.page ?? 1);
     if (!Number.isSafeInteger(page) || page < 1 || page > 1000000) throw new OperationError(400, "页码无效。");
-    response.json({ success: true, ...repository.list(store, page) });
+    response.json({ success: true, ...repositoryFor(store).list(store, page) });
   });
   app.post("/store/api/coupons", (request, response) => {
     const auth = response.locals.gatewayAuthorization;
     requirePermission(auth, "coupon:issue");
     const store = requireStore(auth, request.body?.store);
     const input = normalizeCoupon(request.body);
-    response.status(201).json({ success: true, item: repository.issue(store, input, auth.account.accountId) });
+    response.status(201).json({ success: true, item: repositoryFor(store).issue(store, input, auth.account.accountId) });
   });
   app.delete("/store/api/coupons/:id", (request, response) => {
     const auth = response.locals.gatewayAuthorization;
@@ -54,7 +59,7 @@ export function createApp({ repository, env = process.env }) {
     const store = requireStore(auth, request.body?.store);
     const id = Number(request.params.id);
     if (!Number.isSafeInteger(id) || id <= 0) throw new OperationError(404, "未找到该门店的优惠券。");
-    repository.remove(id, store, auth.account.accountId);
+    repositoryFor(store).remove(id, store, auth.account.accountId);
     response.json({ success: true });
   });
   app.post("/store/api/coupons/:id/redeem", (request, response) => {
@@ -62,22 +67,22 @@ export function createApp({ repository, env = process.env }) {
     requirePermission(auth, "coupon:redeem");
     const store = requireStore(auth, request.body?.store);
     const id = Number(request.params.id);
-    const item = Number.isSafeInteger(id) && id > 0 ? repository.get(id) : null;
+    const item = Number.isSafeInteger(id) && id > 0 ? repositoryFor(store).get(id) : null;
     if (!item || item.store !== store) throw new OperationError(404, "未找到该门店的优惠券。");
-    response.json({ success: true, item: repository.redeem(id, store, auth.account.accountId, auth.account.displayName || auth.account.username) });
+    response.json({ success: true, item: repositoryFor(store).redeem(id, store, auth.account.accountId, auth.account.displayName || auth.account.username) });
   });
   app.post("/store/api/coupons/batch", (request, response) => {
     const auth = response.locals.gatewayAuthorization;
     requirePermission(auth, "coupon:issue");
     const store = requireStore(auth, request.body?.store);
     const input = normalizeBatch(request.body);
-    response.json({ success: true, ...repository.issueBatch(store, input, auth.account.accountId) });
+    response.json({ success: true, ...repositoryFor(store).issueBatch(store, input, auth.account.accountId) });
   });
   app.post("/store/api/coupons/redeem-batch", (request, response) => {
     const auth = response.locals.gatewayAuthorization;
     requirePermission(auth, "coupon:redeem");
     const store = requireStore(auth, request.body?.store);
-    response.json({ success: true, ...repository.redeemBatch(store, normalizeRedeemBatch(request.body), auth.account.accountId) });
+    response.json({ success: true, ...repositoryFor(store).redeemBatch(store, normalizeRedeemBatch(request.body), auth.account.accountId) });
   });
   app.use((_request, response) => response.status(404).json({ success: false, error: { message: "页面或接口不存在。" } }));
   app.use((error, _request, response, _next) => {

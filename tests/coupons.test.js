@@ -6,6 +6,8 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { createRepository, normalizeCoupon } from "../server/repository.js";
 import { allowedStores, requireStore, validateAuthorization } from "../server/policy.js";
+import { seedDemoCoupons } from "../server/demo.js";
+import { parseCouponCode } from "../public/assets/coupon-code.js";
 
 const input = { type: "cash_100", code: " CODE-01 ", reason: "客诉赠送", operator: "可修改姓名", issuedAt: "2026-09-09T10:30:00+08:00" };
 test("required fields reject whitespace and invalid type/time; code preserves case", () => {
@@ -87,4 +89,23 @@ test("legacy unique-code migration preserves records and permits deleted-code re
   assert.equal(repository.get(original.id), null);
   assert.equal(repository.get(fresh.id).status, "unredeemed");
   assert.equal(repository.list("fuzzy", 1).total, 1);
+});
+
+test("the demo store is explicit-only and keeps its coupons in a separate seeded database", (t) => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "store-demo-"));
+  const main = createRepository({ stateDir });
+  const demo = createRepository({ stateDir, file: "demo-coupons.db", stores: ["demo"] });
+  t.after(() => { main.close(); demo.close(); fs.rmSync(stateDir, { recursive: true, force: true }); });
+  const auth = (role, stores) => validateAuthorization({ access: { role, permissions: ["coupon:view"], config: { viewScope: { ownership: "any", stores } } } });
+  assert.deepEqual(allowedStores(auth("admin", "all")), ["fuzzy", "peanut", "fuzzy_qz"]);
+  assert.deepEqual(allowedStores(auth("manager", ["demo"])), ["demo"]);
+  assert.throws(() => requireStore(auth("admin", "all"), "demo"), (error) => error.status === 403);
+  assert.equal(requireStore(auth("manager", ["demo"]), "demo"), "demo");
+  assert.throws(() => main.issue("demo", normalizeCoupon(input), "a"));
+  assert.throws(() => demo.issue("fuzzy", normalizeCoupon(input), "a"));
+  seedDemoCoupons(demo); seedDemoCoupons(demo);
+  const { items, total } = demo.list("demo", 1);
+  assert.equal(total, 6); assert.ok(items.some((item) => item.status === "redeemed") && items.some((item) => item.status === "unredeemed"));
+  for (const item of items) assert.equal(parseCouponCode(item.code, "demo").store, "demo");
+  assert.equal(main.list("fuzzy", 1).total, 0);
 });

@@ -1,5 +1,5 @@
 export const MAX_BATCH_SIZE = 50;
-export const CODE_STORES = Object.freeze({ FUZZY: "fuzzy", FUZZYQZ: "fuzzy_qz", PEANUT: "peanut" });
+export const CODE_STORES = Object.freeze({ FUZZY: "fuzzy", FUZZYQZ: "fuzzy_qz", PEANUT: "peanut", DEMO: "demo" });
 export const CODE_TYPES = Object.freeze({ ZY: "free_drink", "100": "cash_100" });
 
 export function parseCouponCode(value, expectedStore) {

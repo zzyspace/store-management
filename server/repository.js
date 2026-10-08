@@ -68,15 +68,15 @@ function serialize(row) {
     status: row.redeemed_at === null ? "unredeemed" : "redeemed" };
 }
 
-export function createRepository({ stateDir, now = Date.now }) {
+export function createRepository({ stateDir, now = Date.now, file = "coupons.db", stores = ["fuzzy", "fuzzy_qz", "peanut"] }) {
   fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
-  const filename = path.join(stateDir, "coupons.db");
+  const filename = path.join(stateDir, file);
   const fd = fs.openSync(filename, "a", 0o600); fs.closeSync(fd); fs.chmodSync(filename, 0o600);
   const db = new Database(filename);
   db.pragma("journal_mode = WAL"); db.pragma("busy_timeout = 5000");
   const couponSchema = `CREATE TABLE IF NOT EXISTS coupons (
     id INTEGER PRIMARY KEY,
-    store TEXT NOT NULL CHECK(store IN ('fuzzy','fuzzy_qz','peanut')),
+    store TEXT NOT NULL CHECK(store IN (${stores.map((store) => `'${store}'`).join(",")})),
     type TEXT NOT NULL CHECK(type IN ('cash_100','free_drink')),
     code TEXT NOT NULL CHECK(length(trim(code)) > 0),
     reason TEXT NOT NULL CHECK(length(trim(reason)) > 0),
